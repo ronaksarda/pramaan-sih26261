@@ -1,0 +1,95 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "table",
+      "type": "decisionTableNode",
+      "name": "APH infrastructure and faculty norms",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "content": {
+        "hitPolicy": "first",
+        "inputs": [
+          {
+            "id": "i0",
+            "name": "Programme level",
+            "field": "programme_level"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "o0",
+            "name": "Minimum classroom area (m²)",
+            "field": "classroom_min_sqm"
+          },
+          {
+            "id": "o1",
+            "name": "Maximum students per faculty member",
+            "field": "faculty_ratio_max"
+          },
+          {
+            "id": "o2",
+            "name": "Minimum computers visible in a lab photo",
+            "field": "lab_min_monitors_visible"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "r0",
+            "i0": "\"UG Engineering\"",
+            "o0": "66",
+            "o1": "20",
+            "o2": "3"
+          },
+          {
+            "_id": "r1",
+            "i0": "\"Diploma\"",
+            "o0": "66",
+            "o1": "25",
+            "o2": "3"
+          },
+          {
+            "_id": "r2",
+            "i0": "",
+            "o0": "66",
+            "o1": "20",
+            "o2": "3"
+          }
+        ]
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 560,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "request",
+      "targetId": "table",
+      "type": "edge"
+    },
+    {
+      "id": "e2",
+      "sourceId": "table",
+      "targetId": "response",
+      "type": "edge"
+    }
+  ]
+}

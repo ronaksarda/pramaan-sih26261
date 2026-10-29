@@ -1,0 +1,662 @@
+{
+  "summary": {
+    "applications": 50,
+    "clean_applications": 14,
+    "planted_defect_checks": 81,
+    "precision": 0.941,
+    "recall": 0.988,
+    "clean_apps_with_false_flags": 2,
+    "apps_fully_correct": 45,
+    "median_seconds_per_app": 20.6,
+    "max_seconds_per_app": 172.0,
+    "note": "CPU only (no GPU). First application includes model loading. Synthetic documents, real photo crops."
+  },
+  "per_check": {
+    "AREA_SHORTFALL": {
+      "tp": 6,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1.0,
+      "recall": 0.857
+    },
+    "DOC_EXPIRED": {
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "DOC_MISSING": {
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "DUPLICATE_PHOTO": {
+      "tp": 5,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.833,
+      "recall": 1.0
+    },
+    "EDITED_AFTER_SIGNING": {
+      "tp": 5,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "EQUIPMENT_LOW": {
+      "tp": 5,
+      "fp": 3,
+      "fn": 0,
+      "precision": 0.625,
+      "recall": 1.0
+    },
+    "FACULTY_RATIO": {
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "GHOST_FACULTY": {
+      "tp": 10,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "GPS_FAR": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "GPS_MISSING": {
+      "tp": 7,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "NAME_MISMATCH": {
+      "tp": 6,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "SCAN_TAMPER": {
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "SCENE_MISMATCH": {
+      "tp": 5,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.833,
+      "recall": 1.0
+    },
+    "SIGNATORY_MISMATCH": {
+      "tp": 5,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "SOURCE_MISMATCH": {
+      "tp": 10,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    }
+  },
+  "applications": [
+    {
+      "app": "B-001",
+      "expected": [
+        "DOC_MISSING",
+        "GPS_MISSING"
+      ],
+      "found": [
+        "DOC_MISSING",
+        "GPS_MISSING"
+      ],
+      "seconds": 172.0
+    },
+    {
+      "app": "B-002",
+      "expected": [
+        "FACULTY_RATIO",
+        "GHOST_FACULTY"
+      ],
+      "found": [
+        "FACULTY_RATIO",
+        "GHOST_FACULTY"
+      ],
+      "seconds": 18.8
+    },
+    {
+      "app": "B-003",
+      "expected": [],
+      "found": [],
+      "seconds": 26.8
+    },
+    {
+      "app": "B-004",
+      "expected": [
+        "FACULTY_RATIO",
+        "SCAN_TAMPER",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "FACULTY_RATIO",
+        "SCAN_TAMPER",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 33.8
+    },
+    {
+      "app": "B-005",
+      "expected": [
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 32.8
+    },
+    {
+      "app": "B-006",
+      "expected": [
+        "AREA_SHORTFALL",
+        "DOC_MISSING",
+        "GHOST_FACULTY",
+        "GPS_MISSING"
+      ],
+      "found": [
+        "AREA_SHORTFALL",
+        "DOC_MISSING",
+        "GHOST_FACULTY",
+        "GPS_MISSING"
+      ],
+      "seconds": 39.6
+    },
+    {
+      "app": "B-007",
+      "expected": [],
+      "found": [
+        "EQUIPMENT_LOW"
+      ],
+      "seconds": 26.0
+    },
+    {
+      "app": "B-008",
+      "expected": [
+        "GPS_FAR"
+      ],
+      "found": [
+        "GPS_FAR"
+      ],
+      "seconds": 23.1
+    },
+    {
+      "app": "B-009",
+      "expected": [
+        "AREA_SHORTFALL",
+        "EQUIPMENT_LOW",
+        "GHOST_FACULTY",
+        "SCENE_MISMATCH"
+      ],
+      "found": [
+        "AREA_SHORTFALL",
+        "EQUIPMENT_LOW",
+        "GHOST_FACULTY",
+        "SCENE_MISMATCH"
+      ],
+      "seconds": 20.2
+    },
+    {
+      "app": "B-010",
+      "expected": [
+        "AREA_SHORTFALL",
+        "GHOST_FACULTY",
+        "GPS_MISSING",
+        "SIGNATORY_MISMATCH"
+      ],
+      "found": [
+        "AREA_SHORTFALL",
+        "GHOST_FACULTY",
+        "GPS_MISSING",
+        "SIGNATORY_MISMATCH"
+      ],
+      "seconds": 27.1
+    },
+    {
+      "app": "B-011",
+      "expected": [
+        "DOC_EXPIRED",
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH"
+      ],
+      "found": [
+        "DOC_EXPIRED",
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH"
+      ],
+      "seconds": 24.1
+    },
+    {
+      "app": "B-012",
+      "expected": [],
+      "found": [],
+      "seconds": 19.3
+    },
+    {
+      "app": "B-013",
+      "expected": [],
+      "found": [],
+      "seconds": 20.1
+    },
+    {
+      "app": "B-014",
+      "expected": [
+        "EDITED_AFTER_SIGNING",
+        "SIGNATORY_MISMATCH"
+      ],
+      "found": [
+        "EDITED_AFTER_SIGNING",
+        "SIGNATORY_MISMATCH"
+      ],
+      "seconds": 15.1
+    },
+    {
+      "app": "B-015",
+      "expected": [],
+      "found": [],
+      "seconds": 38.0
+    },
+    {
+      "app": "B-016",
+      "expected": [
+        "GHOST_FACULTY"
+      ],
+      "found": [
+        "GHOST_FACULTY"
+      ],
+      "seconds": 56.8
+    },
+    {
+      "app": "B-017",
+      "expected": [
+        "GHOST_FACULTY"
+      ],
+      "found": [
+        "GHOST_FACULTY"
+      ],
+      "seconds": 56.0
+    },
+    {
+      "app": "B-018",
+      "expected": [
+        "FACULTY_RATIO"
+      ],
+      "found": [
+        "FACULTY_RATIO"
+      ],
+      "seconds": 69.5
+    },
+    {
+      "app": "B-019",
+      "expected": [
+        "DUPLICATE_PHOTO",
+        "NAME_MISMATCH",
+        "SIGNATORY_MISMATCH"
+      ],
+      "found": [
+        "DUPLICATE_PHOTO",
+        "NAME_MISMATCH",
+        "SIGNATORY_MISMATCH"
+      ],
+      "seconds": 68.9
+    },
+    {
+      "app": "B-020",
+      "expected": [
+        "DUPLICATE_PHOTO",
+        "GHOST_FACULTY"
+      ],
+      "found": [
+        "DUPLICATE_PHOTO",
+        "GHOST_FACULTY"
+      ],
+      "seconds": 17.8
+    },
+    {
+      "app": "B-021",
+      "expected": [
+        "AREA_SHORTFALL",
+        "EDITED_AFTER_SIGNING",
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH"
+      ],
+      "found": [
+        "AREA_SHORTFALL",
+        "EDITED_AFTER_SIGNING",
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH"
+      ],
+      "seconds": 19.2
+    },
+    {
+      "app": "B-022",
+      "expected": [
+        "DOC_MISSING",
+        "NAME_MISMATCH"
+      ],
+      "found": [
+        "DOC_MISSING",
+        "NAME_MISMATCH"
+      ],
+      "seconds": 17.7
+    },
+    {
+      "app": "B-023",
+      "expected": [
+        "AREA_SHORTFALL",
+        "EDITED_AFTER_SIGNING",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "AREA_SHORTFALL",
+        "EDITED_AFTER_SIGNING",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 14.9
+    },
+    {
+      "app": "B-024",
+      "expected": [
+        "EDITED_AFTER_SIGNING"
+      ],
+      "found": [
+        "EDITED_AFTER_SIGNING"
+      ],
+      "seconds": 15.9
+    },
+    {
+      "app": "B-025",
+      "expected": [
+        "FACULTY_RATIO",
+        "NAME_MISMATCH",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "FACULTY_RATIO",
+        "NAME_MISMATCH",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 21.3
+    },
+    {
+      "app": "B-026",
+      "expected": [
+        "GHOST_FACULTY"
+      ],
+      "found": [
+        "GHOST_FACULTY"
+      ],
+      "seconds": 14.7
+    },
+    {
+      "app": "B-027",
+      "expected": [],
+      "found": [],
+      "seconds": 18.2
+    },
+    {
+      "app": "B-028",
+      "expected": [
+        "GHOST_FACULTY",
+        "SIGNATORY_MISMATCH"
+      ],
+      "found": [
+        "GHOST_FACULTY",
+        "SIGNATORY_MISMATCH"
+      ],
+      "seconds": 16.9
+    },
+    {
+      "app": "B-029",
+      "expected": [
+        "DUPLICATE_PHOTO",
+        "SCAN_TAMPER",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "DUPLICATE_PHOTO",
+        "SCAN_TAMPER",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 20.2
+    },
+    {
+      "app": "B-030",
+      "expected": [
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 19.2
+    },
+    {
+      "app": "B-031",
+      "expected": [
+        "DOC_EXPIRED",
+        "DUPLICATE_PHOTO",
+        "NAME_MISMATCH"
+      ],
+      "found": [
+        "DOC_EXPIRED",
+        "DUPLICATE_PHOTO",
+        "EQUIPMENT_LOW",
+        "NAME_MISMATCH",
+        "SCENE_MISMATCH"
+      ],
+      "seconds": 20.8
+    },
+    {
+      "app": "B-032",
+      "expected": [
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH",
+        "SIGNATORY_MISMATCH"
+      ],
+      "found": [
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH",
+        "SIGNATORY_MISMATCH"
+      ],
+      "seconds": 18.7
+    },
+    {
+      "app": "B-033",
+      "expected": [],
+      "found": [],
+      "seconds": 18.2
+    },
+    {
+      "app": "B-034",
+      "expected": [
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "EQUIPMENT_LOW",
+        "SCENE_MISMATCH",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 19.8
+    },
+    {
+      "app": "B-035",
+      "expected": [
+        "GPS_MISSING",
+        "NAME_MISMATCH",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "GPS_MISSING",
+        "NAME_MISMATCH",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 23.4
+    },
+    {
+      "app": "B-036",
+      "expected": [
+        "AREA_SHORTFALL",
+        "DUPLICATE_PHOTO"
+      ],
+      "found": [
+        "AREA_SHORTFALL",
+        "DUPLICATE_PHOTO"
+      ],
+      "seconds": 17.1
+    },
+    {
+      "app": "B-037",
+      "expected": [],
+      "found": [
+        "EQUIPMENT_LOW"
+      ],
+      "seconds": 20.3
+    },
+    {
+      "app": "B-038",
+      "expected": [
+        "DOC_EXPIRED",
+        "GHOST_FACULTY",
+        "GPS_MISSING"
+      ],
+      "found": [
+        "DOC_EXPIRED",
+        "GHOST_FACULTY",
+        "GPS_MISSING"
+      ],
+      "seconds": 20.6
+    },
+    {
+      "app": "B-039",
+      "expected": [
+        "NAME_MISMATCH"
+      ],
+      "found": [
+        "NAME_MISMATCH"
+      ],
+      "seconds": 19.1
+    },
+    {
+      "app": "B-040",
+      "expected": [
+        "GPS_FAR"
+      ],
+      "found": [
+        "GPS_FAR"
+      ],
+      "seconds": 25.7
+    },
+    {
+      "app": "B-041",
+      "expected": [],
+      "found": [],
+      "seconds": 19.3
+    },
+    {
+      "app": "B-042",
+      "expected": [],
+      "found": [],
+      "seconds": 23.8
+    },
+    {
+      "app": "B-043",
+      "expected": [
+        "GPS_MISSING",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "GPS_MISSING",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 20.8
+    },
+    {
+      "app": "B-044",
+      "expected": [],
+      "found": [],
+      "seconds": 17.3
+    },
+    {
+      "app": "B-045",
+      "expected": [
+        "AREA_SHORTFALL"
+      ],
+      "found": [],
+      "seconds": 18.1
+    },
+    {
+      "app": "B-046",
+      "expected": [],
+      "found": [],
+      "seconds": 31.1
+    },
+    {
+      "app": "B-047",
+      "expected": [
+        "GPS_MISSING",
+        "SCAN_TAMPER",
+        "SOURCE_MISMATCH"
+      ],
+      "found": [
+        "DUPLICATE_PHOTO",
+        "GPS_MISSING",
+        "SCAN_TAMPER",
+        "SOURCE_MISMATCH"
+      ],
+      "seconds": 46.7
+    },
+    {
+      "app": "B-048",
+      "expected": [
+        "DOC_MISSING",
+        "EDITED_AFTER_SIGNING"
+      ],
+      "found": [
+        "DOC_MISSING",
+        "EDITED_AFTER_SIGNING"
+      ],
+      "seconds": 44.6
+    },
+    {
+      "app": "B-049",
+      "expected": [],
+      "found": [],
+      "seconds": 20.5
+    },
+    {
+      "app": "B-050",
+      "expected": [],
+      "found": [],
+      "seconds": 26.0
+    }
+  ]
+}

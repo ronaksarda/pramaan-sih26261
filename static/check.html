@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pramaan Check</title>
+<link rel="icon" href="/mark.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Hind:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/desk.css">
+<style>
+/* phone-first: people open this page by scanning the QR code on an approval record */
+.check{max-width:860px;margin:0 auto;padding:30px 16px 50px}
+.check h1{font-size:40px;font-weight:500;letter-spacing:-1.4px;line-height:1.1;margin:0 0 8px}
+.lead{color:var(--ink2);font-size:16px;margin:0 0 6px}
+.bar-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 14px}
+.bar-row input[type=search]{flex:1;min-width:0;height:36px;border:1px solid #9a9a9a;border-radius:6px;padding:0 10px;box-shadow:inset 0 1px 2px rgba(0,0,0,.16)}
+.verdict{display:flex;gap:14px;align-items:center;padding:16px 18px;border-radius:8px;margin-top:18px;border:1px solid}
+.verdict svg{width:44px;height:44px;flex:none}
+.verdict b{font-size:22px;display:block;line-height:1.2}
+.ok{background:var(--greenbg);color:var(--green);border-color:rgba(27,127,55,.35)}
+.bad{background:var(--redbg);color:var(--red);border-color:rgba(215,0,21,.35)}
+.verdict .s{color:inherit}
+td.x{color:var(--red);font-weight:600}
+.copies{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.copies figure{margin:0}
+.copies img{width:100%;display:block;border-radius:6px;border:1px solid var(--hair)}
+.copies figcaption{font-size:13px;color:var(--ink3);margin-bottom:6px}
+@media (max-width:620px){.copies{grid-template-columns:1fr}.check h1{font-size:30px}}
+</style></head>
+<body class="signed">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="4.3" r="3.1"/><path d="M9.7 7.1h4.6l1.15 5.5H8.55z"/><rect x="3.4" y="12.4" width="17.2" height="4.4" rx="1.4"/>
+    <path d="M8.1 19.9l2.5 2.3 5.3-4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="yes" viewBox="0 0 44 44"><circle cx="22" cy="22" r="21" fill="currentColor"/><path d="M12 22.5l7 7 13-14" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="no" viewBox="0 0 44 44"><circle cx="22" cy="22" r="21" fill="currentColor"/><path d="M14 14l16 16M30 14L14 30" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="menubar">
+  <div class="mb-left"><span class="word" title="प्रमाण, Hindi for proof"><span class="en">pramaan</span><span class="hi-alt" lang="hi">प्रमाण</span></span><nav><a href="/check.html" style="color:#000">public check</a></nav></div>
+  <svg class="mb-mark" aria-hidden="true"><use href="#mark"/></svg>
+  <div class="mb-right"><span id="whoami">no sign-in needed</span><a class="linkbtn" href="/" id="deskLink">officer sign in</a></div>
+</header>
+
+<main class="check">
+  <h1>Is this college's AICTE approval genuine?</h1>
+  <p class="lead">Search the register, or upload the approval record a college gave you. You also see how much of what the college declared was actually verified.</p>
+
+  <h4>Search the register</h4>
+  <div class="group"><div class="bar-row"><input type="search" id="q" placeholder="College name or AICTE ID" aria-label="College name or AICTE ID">
+    <button class="plain" onclick="search()">search</button></div><div id="results"></div></div>
+
+  <h4>Check a copy you were given</h4>
+  <div class="group"><div class="bar-row"><label class="picker"><input type="file" id="file" accept="application/pdf" aria-label="Approval record PDF"><span class="plain sm">choose PDF</span><span class="fname">no file chosen</span></label>
+    <button class="aqua" id="checkBtn" onclick="checkCopy()">check this copy</button></div></div>
+  <div id="msg"></div>
+  <div id="verdict"></div>
+  <div id="record"></div>
+  <p class="note">Synthetic demo data. Pramaan shows proof levels; approval decisions are made by AICTE officers.</p>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LEVELS = ['ISSUER_CONFIRMED', 'RECORD_MATCHED', 'SIGNED_INTACT', 'EVIDENCE_ONLY', 'DECLARED_ONLY', 'CONTRADICTED'];
+const LEVEL_NAME = {ISSUER_CONFIRMED: 'Issuer-confirmed', RECORD_MATCHED: 'AICTE record', SIGNED_INTACT: 'Signed, intact',
+  EVIDENCE_ONLY: 'Evidence only', DECLARED_ONLY: 'Declared only', CONTRADICTED: 'Contradicted'};
+const VERDICT = {GENUINE: 'Genuine', EDITED_AFTER_SIGNING: 'Edited after AICTE signed it', UNSIGNED: 'Not signed',
+  BROKEN_SIGNATURE: 'Broken signature', NOT_AICTE: 'Not signed by AICTE', NOT_IN_REGISTER: 'Not in the register'};
+
+async function get(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
+async function search() {
+  const rows = await get('/api/public/records?q=' + encodeURIComponent($('#q').value));
+  $('#results').innerHTML = rows.map(r => `<div class="row q" onclick="show('${r.id}')" role="button" tabindex="0"
+      onkeydown="if(event.key==='Enter')show('${r.id}')"><div class="main"><div class="t">${esc(r.institution)}</div>
+      <div class="m">AICTE ${esc(r.aicte_id)} · ${esc(r.cycle)} · intake ${r.intake} · ${esc(r.id)}</div></div>
+      <div class="score" style="min-width:56px"><b style="font-size:26px">${r.proof_score}</b><span>proof</span></div></div>`).join('')
+    || '<div class="row"><div class="main"><div class="t">No approval found</div><div class="s">No approval record matches. Ask the college for its record ID.</div></div></div>';
+}
+
+function recordHtml(r) {
+  return `<h4>AICTE register · ${esc(r.id)}</h4>
+    <div class="group"><div class="row"><div class="main"><div class="t" style="font-size:20px">${esc(r.institution)}</div>
+      <div class="s">AICTE ${esc(r.aicte_id)} · ${esc(r.category)}</div>
+      <div class="s">Approved intake <b>${r.intake}</b> for ${esc(r.cycle)} · decided ${r.decided_at.slice(0, 10)}</div></div></div>
+    <div class="row"><div class="score"><b>${r.proof_score}</b><span>proof score</span></div>
+      <div class="main"><div class="s"><b>${r.independent_pct}%</b> of what the college declared was independently confirmed</div>
+        <div class="bar">${LEVELS.filter(l => r.proof_counts[l]).map(l => `<i class="L-${l}" style="flex:${r.proof_counts[l]}"></i>`).join('')}</div>
+        <div class="legend">${LEVELS.map(l => `<span class="L-${l}"><i></i>${LEVEL_NAME[l]} ${r.proof_counts[l]}</span>`).join('')}</div></div></div>
+    ${r.claims.map(c => `<div class="row"><div class="main"><div class="t">${esc(c.claim)}</div><div class="m">${esc(c.basis)}</div></div>
+      <span class="chip L-${c.level}">${LEVEL_NAME[c.level]}</span></div>`).join('')}
+    <div class="row"><div class="main s">The original record, exactly as AICTE signed it.</div>
+      <a class="plain" href="/api/public/records/${r.id}/pdf">download the original</a></div></div>
+    <p class="foot">"Declared only" means the college stated it and nobody has verified it yet. Ask about it before you pay fees.</p>`;
+}
+
+async function show(id) {
+  try { $('#record').innerHTML = recordHtml(await get('/api/public/records/' + encodeURIComponent(id))); $('#msg').innerHTML = ''; }
+  catch (e) { $('#msg').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+  $('#record').scrollIntoView({behavior: 'smooth'});
+}
+
+async function checkCopy() {
+  const f = $('#file').files[0];
+  if (!f) { $('#msg').innerHTML = '<p class="msg err">Choose the PDF you were given first.</p>'; return; }
+  const fd = new FormData(); fd.append('file', f);
+  $('#checkBtn').disabled = true; $('#checkBtn').textContent = 'checking…';
+  try {
+    const v = await get('/api/public/verify', {method: 'POST', body: fd});
+    const good = v.status === 'GENUINE';
+    $('#msg').innerHTML = '';
+    $('#verdict').innerHTML = `
+      <div class="verdict ${good ? 'ok' : 'bad'}"><svg><use href="#${good ? 'yes' : 'no'}"/></svg>
+        <div><b>${VERDICT[v.status]}</b><div class="s">${esc(v.explanation)}</div></div></div>
+      ${v.differences.length ? `<h4>Your copy vs the AICTE register</h4><div class="group"><table><tr><th>Field</th><th>Your copy says</th><th>Register says</th></tr>
+        ${v.differences.map(d => `<tr><td>${esc(d.field)}</td><td class="x">${esc(d.copy)}</td><td>${esc(d.register)}</td></tr>`).join('')}</table></div>` : ''}
+      <h4>Side by side</h4><div class="copies">
+        <figure><figcaption>Your copy</figcaption><img alt="Uploaded copy" src="data:image/png;base64,${v.preview}"></figure>
+        ${v.record ? `<figure><figcaption>Issued by AICTE</figcaption><img alt="Original record" src="/api/public/records/${v.record.id}/preview"></figure>` : ''}</div>`;
+    $('#record').innerHTML = v.record ? recordHtml(v.record) : '';
+    $('#verdict').scrollIntoView({behavior: 'smooth'});
+  } catch (e) { $('#msg').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+  $('#checkBtn').disabled = false; $('#checkBtn').textContent = 'check this copy';
+}
+
+document.addEventListener('change', e => {
+  const pick = e.target.closest('.picker');
+  if (pick) pick.querySelector('.fname').textContent = e.target.files[0]?.name || 'no file chosen';
+});
+fetch('/api/me').then(r => r.ok ? r.json() : null).then(me => {  // signed-in officers get a way back to their desk
+  if (me) { $('#whoami').textContent = me.name.split(',')[0]; $('#deskLink').textContent = 'back to your desk'; }
+});
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+const id = new URLSearchParams(location.search).get('id');
+if (id) show(id);
+</script>
+</body></html>

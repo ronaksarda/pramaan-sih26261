@@ -1,0 +1,102 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "table",
+      "type": "decisionTableNode",
+      "name": "Escalation matrix",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "content": {
+        "hitPolicy": "first",
+        "inputs": [
+          {
+            "id": "i0",
+            "name": "Findings that need an inspection",
+            "field": "RECOMMEND_INSPECTION"
+          },
+          {
+            "id": "i1",
+            "name": "Findings that need more evidence",
+            "field": "ADDITIONAL_EVIDENCE"
+          },
+          {
+            "id": "i2",
+            "name": "Items the college must fix",
+            "field": "RECTIFY"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "o0",
+            "name": "Recommendation",
+            "field": "outcome"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "r0",
+            "i0": "> 0",
+            "i1": "",
+            "i2": "",
+            "o0": "\"RECOMMEND_INSPECTION\""
+          },
+          {
+            "_id": "r1",
+            "i0": "",
+            "i1": "> 0",
+            "i2": "",
+            "o0": "\"ADDITIONAL_EVIDENCE\""
+          },
+          {
+            "_id": "r2",
+            "i0": "",
+            "i1": "",
+            "i2": "> 0",
+            "o0": "\"RECTIFY\""
+          },
+          {
+            "_id": "r3",
+            "i0": "",
+            "i1": "",
+            "i2": "",
+            "o0": "\"CLEAR\""
+          }
+        ]
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 560,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "request",
+      "targetId": "table",
+      "type": "edge"
+    },
+    {
+      "id": "e2",
+      "sourceId": "table",
+      "targetId": "response",
+      "type": "edge"
+    }
+  ]
+}

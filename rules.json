@@ -1,0 +1,265 @@
+{
+  "version": "APH-2024-27/v2",
+  "categories": {
+    "EOA_SELF_DISCLOSURE": {
+      "label": "EoA based on Self-Disclosure (APH cl. 2.5)",
+      "required": {
+        "affidavit.pdf": "APH Annexure 2 §2.1(i)",
+        "fee_receipt.pdf": "APH Annexure 2 §2.1(ii)",
+        "occupancy_certificate.pdf": "APH Annexure 2 §2.1(iii)",
+        "fire_noc.pdf": "APH Annexure 2 §2.1(v)",
+        "satellite_map.pdf": "APH Annexure 2 §2.1(vi)",
+        "audited_accounts.pdf": "APH Annexure 2 §2.1(vii)"
+      }
+    },
+    "INCREASE_INTAKE": {
+      "label": "Increase in Intake (APH cl. 2.6)",
+      "required": {
+        "affidavit.pdf": "APH Annexure 2 §2.1(i)",
+        "fee_receipt.pdf": "APH Annexure 2 §2.1(ii)",
+        "occupancy_certificate.pdf": "APH Annexure 2 §2.1(iii)",
+        "fire_noc.pdf": "APH Annexure 2 §2.1(v)",
+        "satellite_map.pdf": "APH Annexure 2 §2.1(vi)",
+        "audited_accounts.pdf": "APH Annexure 2 §2.1(vii)",
+        "university_noc.pdf": "APH Annexure 2 §2.3 (Format 2)"
+      }
+    }
+  },
+  "required_fields": {
+    "affidavit.pdf": [
+      "Institution Name",
+      "AICTE Permanent ID",
+      "Signatory",
+      "E-Stamp No",
+      "E-Stamp Date",
+      "Affidavit Date"
+    ],
+    "fire_noc.pdf": [
+      "NOC No",
+      "Institution Name",
+      "Valid Upto"
+    ],
+    "occupancy_certificate.pdf": [
+      "Certificate No",
+      "Institution Name",
+      "Issue Date",
+      "DigiLocker URI"
+    ],
+    "fee_receipt.pdf": [
+      "Transaction ID",
+      "AICTE Permanent ID"
+    ],
+    "satellite_map.pdf": [
+      "Latitude",
+      "Longitude"
+    ]
+  },
+  "expiry_fields": {
+    "fire_noc.pdf": "Valid Upto"
+  },
+  "norms": {
+    "expiry_warn_days": 90,
+    "programme_years": 4,
+    "structural_certificate_after_years": 30,
+    "name_match_ok": 90,
+    "name_match_review": 75,
+    "photo_geofence_m": 200,
+    "photo_geofence_high_m": 1000,
+    "photo_max_age_days": 180,
+    "map_match_m": 100,
+    "phash_max_distance": 6,
+    "source_retries": 3,
+    "scene_min_confidence": 0.6,
+    "intake_jump_pct": 50
+  },
+  "checks": {
+    "DOC_MISSING": {
+      "severity": "HIGH",
+      "action": "RECTIFY",
+      "clause": "per checklist",
+      "title": "Document missing"
+    },
+    "FIELD_MISSING": {
+      "severity": "MEDIUM",
+      "action": "RECTIFY",
+      "clause": "APH Annexure 2",
+      "title": "Detail could not be read"
+    },
+    "DOC_EXPIRED": {
+      "severity": "HIGH",
+      "action": "RECTIFY",
+      "clause": "APH Annexure 2 §2.1(v)",
+      "title": "Document expired"
+    },
+    "DOC_EXPIRING": {
+      "severity": "LOW",
+      "action": "CLEAR",
+      "clause": "APH Annexure 2 §2.1(v)",
+      "title": "Document expires soon"
+    },
+    "NAME_MISMATCH": {
+      "severity": "MEDIUM",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "Cross-document consistency",
+      "title": "College name differs from AICTE record"
+    },
+    "ID_MISMATCH": {
+      "severity": "HIGH",
+      "action": "RECTIFY",
+      "clause": "Cross-document consistency",
+      "title": "Wrong AICTE ID"
+    },
+    "SIGNATORY_MISMATCH": {
+      "severity": "HIGH",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "APH Annexure 2 (authorised signatory)",
+      "title": "Signed by someone not on record"
+    },
+    "DATE_ILLOGICAL": {
+      "severity": "MEDIUM",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "Date logic",
+      "title": "Dates out of order"
+    },
+    "EDITED_AFTER_SIGNING": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "APH Annexure 2 (DSC-signed uploads)",
+      "title": "Changed after it was signed"
+    },
+    "DSC_INVALID": {
+      "severity": "HIGH",
+      "action": "RECTIFY",
+      "clause": "APH Annexure 2 (DSC-signed uploads)",
+      "title": "Digital signature invalid"
+    },
+    "DSC_MISSING": {
+      "severity": "HIGH",
+      "action": "RECTIFY",
+      "clause": "APH Annexure 2 (DSC-signed uploads)",
+      "title": "Not digitally signed"
+    },
+    "DUPLICATE_PHOTO": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "Integrity: reused evidence",
+      "title": "Photo reused from another college"
+    },
+    "GPS_MISSING": {
+      "severity": "MEDIUM",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "APH Annexure 2 §2.1(vi)",
+      "title": "Photo has no location"
+    },
+    "GPS_FAR": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "APH Annexure 2 §2.1(vi)",
+      "title": "Photo taken away from campus"
+    },
+    "PHOTO_STALE": {
+      "severity": "LOW",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "Evidence freshness",
+      "title": "Old photo"
+    },
+    "AREA_SHORTFALL": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "APH Annexure 3 (norms table)",
+      "title": "Classroom smaller than the norm"
+    },
+    "FACULTY_RATIO": {
+      "severity": "HIGH",
+      "action": "RECTIFY",
+      "clause": "APH Annexure 5 §5.2 (norms table)",
+      "title": "Too few faculty for the intake"
+    },
+    "STRUCTURAL_REQUIRED": {
+      "severity": "HIGH",
+      "action": "RECTIFY",
+      "clause": "APH Annexure 2 §2.1(iv)",
+      "title": "Structural safety certificate needed"
+    },
+    "SOURCE_MISMATCH": {
+      "severity": "HIGH",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "Issuing-authority verification",
+      "title": "Issuing office's record disagrees"
+    },
+    "SOURCE_DOWN": {
+      "severity": "LOW",
+      "action": "CLEAR",
+      "clause": "Issuing-authority verification",
+      "title": "Issuing office's system offline"
+    },
+    "FIELD_LOW_CONFIDENCE": {
+      "severity": "LOW",
+      "action": "CLEAR",
+      "clause": "Extraction confidence",
+      "title": "Unclear reading, officer to confirm"
+    },
+    "SCAN_TAMPER": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "Integrity: scan editing check",
+      "title": "Part of the scan looks edited"
+    },
+    "SCENE_MISMATCH": {
+      "severity": "HIGH",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "Infrastructure evidence",
+      "title": "Photo shows a different kind of room"
+    },
+    "EQUIPMENT_LOW": {
+      "severity": "MEDIUM",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "APH Annexure 4 (computers)",
+      "title": "Too few computers visible"
+    },
+    "REPEAT_DEFICIENCY": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "AICTE approval history",
+      "title": "Same problem as the last approval"
+    },
+    "GHOST_FACULTY": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "APH Annexure 5 (faculty, PAN-linked AICTE faculty registry)",
+      "title": "Faculty also listed at another college"
+    },
+    "UNSUPPORTED_GROWTH": {
+      "severity": "MEDIUM",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "Change since last approval (AICTE approval history)",
+      "title": "Intake grew, capacity did not"
+    }
+  },
+  "proof_levels": {
+    "ISSUER_CONFIRMED": {
+      "weight": 1.0,
+      "label": "Confirmed by the issuing authority"
+    },
+    "RECORD_MATCHED": {
+      "weight": 0.9,
+      "label": "Matches AICTE's own records"
+    },
+    "SIGNED_INTACT": {
+      "weight": 0.6,
+      "label": "Digitally signed, unedited since signing"
+    },
+    "EVIDENCE_ONLY": {
+      "weight": 0.4,
+      "label": "Supporting evidence only, no independent source"
+    },
+    "DECLARED_ONLY": {
+      "weight": 0.1,
+      "label": "Declared only, no evidence"
+    },
+    "CONTRADICTED": {
+      "weight": 0.0,
+      "label": "Contradicted by a finding"
+    }
+  }
+}

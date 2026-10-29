@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pramaan</title>
+<link rel="icon" href="/mark.svg" type="image/svg+xml">
+<!-- Inter for Latin, Hind for the Devanagari wordmark: Inter has no Devanagari, so the browser falls through to Hind -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Hind:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/desk.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- Pramaan means proof. The mark is an attestation stamp whose impression is a tick: attested, then verified -->
+  <symbol id="mark" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="4.3" r="3.1"/><path d="M9.7 7.1h4.6l1.15 5.5H8.55z"/><rect x="3.4" y="12.4" width="17.2" height="4.4" rx="1.4"/>
+    <path d="M8.1 19.9l2.5 2.3 5.3-4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<!-- sign in -->
+<section id="login" class="desk-center">
+  <div class="window login-win">
+    <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">sign in</span></div>
+    <div class="login-body">
+      <svg class="hero-mark"><use href="#mark"/></svg>
+      <h1 class="hero word" title="प्रमाण, Hindi for proof"><span class="en">pramaan</span><span class="hi-alt" lang="hi">प्रमाण</span></h1>
+      <p class="tag">proof, not just paperwork, for AICTE approvals</p>
+      <form id="loginForm" class="login-form" autocomplete="on">
+        <label for="lu">username</label><input id="lu" name="username" autocomplete="username" required>
+        <label for="lp">password</label><input id="lp" name="password" type="password" autocomplete="current-password" required>
+        <button class="aqua wide" type="submit">sign in</button>
+        <p class="err" id="loginErr" role="alert"></p>
+      </form>
+      <div class="demo">
+        <p>demo build: synthetic test accounts</p>
+        <div class="demo-list" id="demoList"></div>
+      </div>
+    </div>
+  </div>
+  <p class="under">checking a college? <a href="/check.html">public approval check, no sign-in needed</a></p>
+</section>
+
+<!-- signed-in app -->
+<header class="menubar app">
+  <div class="mb-left"><span class="word" title="प्रमाण, Hindi for proof"><span class="en">pramaan</span><span class="hi-alt" lang="hi">प्रमाण</span></span>
+    <nav aria-label="Sections"><button data-t="queue" class="on">applications</button><button data-t="alerts">alerts <span class="count" id="alertCount"></span></button><button data-t="rules">rules</button><button data-t="inspect" id="inspectTab">inspection plan</button><button data-t="audit" id="auditTab">audit trail</button><a href="/check.html">public check</a></nav></div>
+  <svg class="mb-mark" aria-hidden="true"><use href="#mark"/></svg>
+  <div class="mb-right">
+    <label class="switch" id="fireWrap" title="Simulate the state fire registry going offline"><input type="checkbox" id="fire" role="switch"> fire registry offline</label>
+    <span class="who" id="who"></span><span class="clock" id="clock"></span>
+    <button class="linkbtn" onclick="signOut()">sign out</button>
+  </div>
+</header>
+
+<main class="app">
+  <section id="queue" class="split">
+    <div class="window">
+      <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title" id="listTitle">applications</span></div>
+      <div id="list"></div>
+      <p class="foot" id="listFoot"></p>
+    </div>
+    <div class="window case-win">
+      <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title" id="caseTitle">case file</span></div>
+      <div class="pad" id="case"><div class="empty"><svg><use href="#mark"/></svg><b>no application open</b>
+        Choose an application on the left to see its findings, proof levels and decision.</div></div>
+    </div>
+  </section>
+  <section id="alerts" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">alerts</span></div>
+    <div class="pad" id="alertsBody"></div></div></section>
+  <section id="rules" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">rules</span></div>
+    <div class="pad">
+      <h4>Norms used in every check</h4>
+      <p class="foot" style="margin:-2px 2px 10px">Edit a value, or import a norms circular (PDF) or a saved norms file (JSON). Nothing changes until you publish.</p>
+      <div class="row-actions" style="margin-top:0">
+        <label class="picker"><input type="file" id="normsFile" accept="application/pdf,application/json,.json" aria-label="Norms circular PDF or JSON"><span class="plain sm">choose PDF or JSON</span><span class="fname">no file chosen</span></label>
+        <button class="plain" onclick="importNorms()">import from file</button>
+        <a class="plain" href="/api/rules/norms/export">download as JSON</a></div>
+      <div id="importMsg"></div>
+      <div class="group" id="normsTable"></div>
+      <div class="row-actions"><button class="aqua" onclick="publishNorms()">publish rules</button>
+        <span class="foot">Approver only. Re-run checks after publishing; every check records which rules version it used.</span></div>
+      <div id="rulesMsg"></div>
+      <h4>What Pramaan recommends, and when</h4>
+      <div class="group" id="escTable"></div>
+      <h4>Checklists by application category</h4>
+      <div class="group" id="checklists"></div>
+    </div></div></section>
+  <section id="inspect" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">inspection plan</span></div>
+    <div class="pad">
+      <h4 style="margin-top:4px">Which colleges should an expert team visit first?</h4>
+      <p class="foot" style="margin:-2px 2px 12px">Self-disclosure approvals are checked only after approval (APH 2.5(c)), and inspection teams are few.
+        Pramaan ranks colleges by how little of their claim is proven, and puts colleges that share faculty or photos into the same visit.</p>
+      <div class="row-actions" style="margin-top:0"><label for="budget" class="s">Inspection visits available</label>
+        <input id="budget" type="number" min="1" max="50" value="3" style="width:70px;height:32px;border:1px solid #bdbdbd;border-radius:6px;padding:0 8px">
+        <button class="aqua" onclick="loadPlan()">plan visits</button></div>
+      <div id="planBody"></div>
+    </div></div></section>
+  <section id="audit" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">audit trail</span></div>
+    <div class="pad" id="auditBody"></div></div></section>
+  <p class="note">Synthetic applications and documents; real licensed campus photos. Every finding is a preliminary indicator for an officer to review, never a verdict.</p>
+</main>
+
+<dialog id="ev" class="window"><div class="titlebar"><span class="lights"><i class="close" onclick="ev.close()" title="Close"></i><i></i><i></i></span>
+  <span class="title" id="evTitle"></span><button class="linkbtn" onclick="ev.close()">close</button></div>
+  <div class="pad" id="evBody"></div></dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const words = s => String(s ?? '').replaceAll('_', ' ').toLowerCase().replace(/^./, c => c.toUpperCase()).replace(/\bGps\b|\bgps\b/, 'GPS').replace(/\bDsc\b/, 'DSC');
+const LABEL = {AWAITING_CHECKER: 'Awaiting second officer', CLEAR: 'No concerns', RECTIFY: 'College must fix', ADDITIONAL_EVIDENCE: 'More evidence needed',
+  RECOMMEND_INSPECTION: 'Recommend inspection', SOURCE_UNAVAILABLE: 'Office offline', ORDER_INSPECTION: 'Inspection ordered',
+  ISSUE_DEFICIENCY: 'Deficiency letter', APPROVE: 'Approved'};
+const label = s => LABEL[s] || words(s);
+const chip = s => `<span class="chip ${esc(s || 'PENDING')}">${s ? label(s) : 'Not run'}</span>`;
+const CAT = {EOA_SELF_DISCLOSURE: 'EoA self-disclosure', INCREASE_INTAKE: 'Increase in intake'};
+const ROLE_NAME = {scrutiny_officer: 'scrutiny officer', approver: 'approver', institution: 'institution', auditor: 'auditor', 'ai-service': 'AI service account'};
+const DEMO = [['officer.k', 'scrutiny officer'], ['officer.m', 'second officer'], ['approver.r', 'approver'],
+  ['1-444444', 'Kaveri College (institution)'], ['auditor.v', 'auditor'], ['pramaan-ai', 'AI service (guard test)']];  // passwords: README
+let ME = null, current = null, evidenceStore = [], RULES = null;
+const role = () => ME?.role;
+const officer = () => ['scrutiny_officer', 'approver'].includes(role());
+
+async function api(path, opts = {}) {
+  const headers = {...(opts.headers || {})};
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  const r = await fetch(path, {...opts, headers});
+  const body = await r.json().catch(() => ({}));
+  if (r.status === 401 && path !== '/api/login') { boot(); }
+  if (!r.ok) throw new Error(`${r.status}: ${body.detail || r.statusText}`);
+  return body;
+}
+
+/* ---------- session ---------- */
+$('#demoList').innerHTML = DEMO.map(([u, label]) =>
+  `<button type="button" class="pill" onclick="$('#lu').value='${u}';$('#lp').focus()"><b>${u}</b> ${label}</button>`).join('');
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault();
+  $('#loginErr').textContent = '';
+  try { await api('/api/login', {method: 'POST', body: JSON.stringify({username: $('#lu').value, password: $('#lp').value})}); $('#lp').value = ''; boot(); }
+  catch (err) { $('#loginErr').textContent = err.message.replace(/^\d+: /, ''); }
+};
+async function signOut() { await api('/api/logout', {method: 'POST'}); location.reload(); }
+async function boot() {
+  ME = await fetch('/api/me').then(r => r.ok ? r.json() : null).catch(() => null);
+  document.body.classList.toggle('signed', !!ME);
+  if (!ME) { $('#lu').focus(); return; }
+  $('#who').textContent = `${ME.name.split(',')[0]} · ${ROLE_NAME[ME.role]}`;
+  $('#fireWrap').hidden = !officer();
+  $('#auditTab').hidden = $('#inspectTab').hidden = !(officer() || role() === 'auditor');
+  if (officer()) api('/api/sources').then(s => $('#fire').checked = s.down.includes('fire'));
+  loadList();
+}
+const tick = () => $('#clock').textContent = new Date().toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'});
+tick(); setInterval(tick, 30000);
+
+/* ---------- queue + case ---------- */
+async function loadList() {
+  const apps = await api('/api/apps');
+  const inst = role() === 'institution';
+  $('#listTitle').textContent = inst ? 'my applications' : 'applications, by risk';
+  $('#listFoot').textContent = inst ? 'Run the pre-check, fix what it finds, then submit to AICTE.' : 'Submitted applications. Highest risk first.';
+  $('#list').innerHTML = apps.map(a => `
+    <div class="row q ${a.id === current ? 'on' : ''}" onclick="openApp('${a.id}')" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter')openApp('${a.id}')">
+      <div class="main"><div class="t">${esc(a.institution)}</div>
+        <div class="m">${a.id} · ${CAT[a.category]}</div>
+        <div class="chips">${inst ? chip(a.status) : ''} ${chip(a.outcome)} ${a.decision ? chip(a.decision.status === 'AWAITING_CHECKER' ? 'AWAITING_CHECKER' : a.decision.outcome) : ''}</div></div>
+      <div class="risk">${a.risk_score ?? '–'}<small>risk</small></div>
+    </div>`).join('') || '<div class="row"><div class="main"><div class="t">Nothing here yet</div><div class="s">No application is visible to your account.</div></div></div>';
+  loadAlertCount();
+}
+
+function findingsHtml(f) {
+  return `<div class="group">${f.length ? f.map(x => `
+    <div class="row finding">
+      <div class="main"><div>${chip(x.severity)} <span class="t">${esc(x.title)}</span></div>
+        <div class="s">${esc(x.message)}</div>
+        <div class="m">${esc(x.clause)} · suggested next step: ${label(x.action).toLowerCase()}</div>
+        ${x.status !== 'OPEN' ? `<div class="m">${chip(x.status)} by ${esc(x.reviewed_by)}${x.review_reason ? ': ' + esc(x.review_reason) : ''}</div>` : ''}</div>
+      <div class="acts">
+        ${x.evidence.length ? `<button class="plain sm" onclick="showEvidence(${evidenceStore.push(x) - 1})">view</button>` : ''}
+        ${x.status === 'OPEN' && officer() ? `<button class="plain sm" onclick="reviewFinding(${x.id},'ACCEPTED')">accept</button>
+          <button class="plain sm red" onclick="reviewFinding(${x.id},'DISMISSED')">dismiss</button>` : ''}</div>
+    </div>`).join('') : '<div class="row"><div class="main"><div class="t">No findings</div><div class="s">Every check passed for this application.</div></div></div>'}</div>`;
+}
+
+const LEVELS = ['ISSUER_CONFIRMED', 'RECORD_MATCHED', 'SIGNED_INTACT', 'EVIDENCE_ONLY', 'DECLARED_ONLY', 'CONTRADICTED'];
+const LEVEL_NAME = {ISSUER_CONFIRMED: 'Issuer-confirmed', RECORD_MATCHED: 'AICTE record', SIGNED_INTACT: 'Signed, intact',
+  EVIDENCE_ONLY: 'Evidence only', DECLARED_ONLY: 'Declared only', CONTRADICTED: 'Contradicted'};
+
+function proofHtml(p, inst) {
+  return `<h4 id="proofHead">How much of this is proven</h4>
+    <div class="group"><div class="row proof"><div class="score"><b>${p.score}</b><span>proof score</span></div>
+      <div class="main"><div class="s"><b>${p.independent_pct}%</b> of claims independently confirmed by an issuer or AICTE's own records ·
+        ${p.counts.DECLARED_ONLY} declared only · ${p.counts.CONTRADICTED} contradicted</div>
+        <div class="bar">${LEVELS.filter(l => p.counts[l]).map(l => `<i class="L-${l}" style="flex:${p.counts[l]}" title="${LEVEL_NAME[l]}: ${p.counts[l]}"></i>`).join('')}</div>
+        <div class="legend">${LEVELS.map(l => `<span class="L-${l}"><i></i>${LEVEL_NAME[l]} ${p.counts[l]}</span>`).join('')}</div></div></div>
+    ${p.claims.map(c => `<div class="row claim"><div class="main"><div class="t">${esc(c.claim)}</div><div class="m">${esc(c.basis)}</div></div>
+      <span class="chip L-${c.level}">${LEVEL_NAME[c.level]}</span></div>`).join('')}</div>
+    <p class="foot">${inst ? 'Raise your score: get certificates issued through DigiLocker, keep faculty PAN-linked, upload measured floor plans.'
+      : 'Proof level, not compliance: how strongly each claim is backed, from declared only up to confirmed by the issuer.'}</p>`;
+}
+
+function changesHtml(c) {
+  if (!c) return '';
+  const L = {intake: 'Intake', faculty: 'Faculty', classrooms: 'Classrooms', built_up_sqm: 'Built-up area (m²)'};
+  return `<h4 id="changeHead">What changed since the ${esc(c.cycle)} approval</h4>
+    <div class="group"><table class="grid"><tr><th>Item</th><th>${esc(c.cycle)}</th><th>Now</th><th>Change</th></tr>
+    ${c.rows.map(r => `<tr><td>${L[r.field]}</td><td>${r.then}</td><td>${r.now ?? '–'}</td>
+      <td class="${r.pct > 0 ? 'up' : r.pct < 0 ? 'down' : ''}">${r.pct === null ? '–' : (r.pct > 0 ? '+' : '') + r.pct + ' %'}</td></tr>`).join('')}</table></div>`;
+}
+
+function institutionHtml(a, docs, run) {
+  const required = Object.keys(RULES.rules.categories[a.category].required);
+  const blocking = (run?.findings || []).filter(f => f.action === 'RECTIFY');
+  return `
+    <h4>Checklist: ${esc(RULES.rules.categories[a.category].label)}</h4>
+    <div class="group">${required.map(d => `
+      <div class="row upload"><div class="main"><div class="t">${esc(d)}</div>
+        <div class="m">${esc(RULES.rules.categories[a.category].required[d])}</div></div>
+        ${chip(docs.includes(d) ? 'UPLOADED' : 'MISSING')}
+        ${a.status === 'DRAFT' ? `<label class="picker"><input type="file" accept="application/pdf" data-doc="${esc(d)}" aria-label="Choose ${esc(d)}"><span class="plain sm">choose PDF</span><span class="fname">no file chosen</span></label>
+          <button class="plain sm" onclick="uploadDoc('${a.id}','${esc(d)}')">upload</button>` : ''}</div>`).join('')}</div>
+    <div id="upMsg"></div>
+    ${a.status === 'DRAFT' ? `<div class="row-actions">
+      <button class="aqua" id="submitBtn" onclick="submitApp('${a.id}')" ${!run || blocking.length ? 'disabled' : ''}>submit to AICTE</button>
+      <span class="foot">${!run ? 'Run the pre-check first.' : blocking.length ? `${blocking.length} item(s) to fix before you can submit.` : 'Ready to submit.'}</span></div>`
+      : '<p class="msg ok">Submitted to AICTE. Officers now see this application.</p>'}`;
+}
+
+async function openApp(id) {
+  current = id;
+  loadList();
+  if (!RULES) RULES = await api('/api/rules');
+  const {application: a, documents: docs, run, decision, record} = await api(`/api/apps/${id}`);
+  evidenceStore = [];
+  const inst = role() === 'institution';
+  const f = run?.findings || [], v = run?.verifications || [];
+  const count = s => f.filter(x => x.severity === s).length;
+  $('#caseTitle').textContent = `${a.id} · ${a.institution}`;
+  $('#case').innerHTML = `
+    <div class="head"><div><h2>${esc(a.institution)}</h2>
+      <div class="meta">AICTE ${a.aicte_id} · ${esc(run?.category_label || CAT[a.category])} · applied ${a.application_date}</div></div>
+      <span class="sp"></span>${chip(run?.outcome)} <button class="aqua" id="runBtn" onclick="runChecks('${id}')">${inst ? 'run pre-check' : run ? 're-run checks' : 'run checks'}</button></div>
+    ${run ? `<div class="meta">Rules ${esc(run.rules_version)} · run ${run.ran_at.replace('T', ' ')} in ${run.seconds} s · risk ${run.risk_score}/100</div>` : ''}
+    ${inst ? institutionHtml(a, docs, run) : ''}
+    ${run ? `
+    ${inst ? '' : `<div class="stats">
+      <div class="stat"><b>${count('HIGH')}</b><span>high</span></div>
+      <div class="stat"><b>${count('MEDIUM')}</b><span>medium</span></div>
+      <div class="stat"><b>${count('LOW')}</b><span>low</span></div>
+      <div class="stat"><b>${v.filter(x => x.status === 'VERIFIED').length}/${v.length}</b><span>confirmed by issuers</span></div>
+      <div class="stat"><b>${run.proof.score}</b><span>proof score</span></div>
+      <div class="stat"><b>${f.filter(x => x.status === 'OPEN').length}</b><span>awaiting review</span></div></div>`}
+    <h4>${inst ? 'Pre-check results' : 'Findings'}</h4>${findingsHtml(f)}
+    ${proofHtml(run.proof, inst)}
+    ${inst ? '' : changesHtml(run.changes)}
+    <h4>Checked with the issuing offices</h4>
+    <div class="group">${v.map(x => `
+      <div class="row source"><div class="main"><div class="t">${esc(x.doc)}</div><div class="s">${esc(x.source)}</div>
+        <div class="mono">checked ${x.checked_at.slice(11)} · reference ${x.request_id}</div></div>${chip(x.status)}</div>`).join('')}</div>
+    <p class="foot">Each document ends in one of six states: verified, mismatch, expired, pending, office offline, or manual review.</p>
+    ${inst ? '' : `
+    <h4>Campus photos, checked by image recognition</h4>
+    <div class="photos">${(run.photos || []).map(p => `
+      <figure class="photo"><img alt="${esc(p.label)} photo" src="/api/evidence?app=${a.id}&doc=${encodeURIComponent(p.file)}&kind=img">
+        <figcaption><span class="t">Declared: ${esc(p.label)}</span><br>
+        <span class="s">Looks like: ${esc(p.scene)} (${Math.round(p.scene_p * 100)}% sure)</span><br>
+        <span class="s">${p.monitors === null ? 'Not a lab photo' : `Computers seen: ${p.monitors}`}</span><br>
+        <span class="m">${p.distance_m === null ? 'No location in photo' : `Taken ${p.distance_m} m from the campus entrance`}</span></figcaption></figure>`).join('') || '<p class="foot">No photos.</p>'}</div>
+    <h4>What Pramaan read from each document</h4>
+    <div class="group">${Object.entries(run.extraction).map(([d, x]) => `
+      <div class="row"><div class="main"><div class="t">${esc(d)}</div><div class="s">${esc(x.method)}${x.ela_peak !== undefined ? ` · edit signal ${x.ela_peak}` : ''}</div>
+        <div class="mono">${esc(Object.entries(x.fields).map(([k, val]) => `${k}: ${val}`).join(' · '))}</div></div></div>`).join('')}</div>
+    <h4 id="decisionHead">Decision, human only</h4>
+    ${decision ? `<div class="group"><div class="row"><div class="main"><div>${chip(decision.outcome)} <span class="t">${esc(decision.maker)}${decision.checker ? ' + ' + esc(decision.checker) : ''}</span></div>
+      <div class="s">${esc(decision.reason)}</div><div class="m">${decision.at.replace('T', ' ')} · proposed by ${esc(decision.maker)}${
+        decision.status === 'AWAITING_CHECKER' ? ` · waiting for ${esc(decision.checker)} to confirm` : decision.confirmed_at ? ` · confirmed by ${esc(decision.checker)} ${decision.confirmed_at.replace('T', ' ')}` : ''}</div></div></div>
+      ${decision.status === 'AWAITING_CHECKER' && ME.username === decision.checker ? `<div class="row" id="confirmRow"><div class="main"><div class="t">You are the second officer</div>
+        <div class="s">Check the findings above, then confirm this decision or send it back with a reason.</div></div>
+        <button class="plain red" onclick="confirmDecision('${id}', false)">send back</button>
+        <button class="aqua" onclick="confirmDecision('${id}', true)">confirm decision</button></div>` : ''}
+      ${record ? `<div class="row" id="record"><div class="main"><div class="t">Signed approval record ${esc(record.id)}</div>
+        <div class="s">Signed with AICTE's key. Students and parents scan its QR code to check it.</div></div>
+        <a class="plain" href="/api/public/records/${record.id}/pdf">download PDF</a>
+        <a class="aqua" href="/check.html?id=${record.id}" id="publicLink">open public check</a></div>` : ''}</div>` : `
+      <div class="group form">
+        <div class="row"><label for="dOutcome">Outcome</label><select id="dOutcome"><option value="APPROVE">Approve</option><option value="ISSUE_DEFICIENCY">Issue a deficiency letter</option><option value="ORDER_INSPECTION">Order an inspection</option></select></div>
+        <div class="row"><label for="dReason">Reason</label><input id="dReason" placeholder="Required for an adverse decision"></div>
+        <div class="row"><label for="dChecker">Checker</label><input id="dChecker" placeholder="Second officer's user ID"></div>
+      </div>
+      <div class="row-actions"><button class="aqua" onclick="decide('${id}')">record decision</button>
+        <span class="foot">Recorded as ${esc(ME.username)}.</span></div>`}
+    <div id="dMsg"></div>
+    <div class="row-actions"><button class="plain" onclick="downloadPack('${id}')">download evidence pack</button></div>`}`
+    : `<div class="empty"><svg><use href="#mark"/></svg><b>checks not run yet</b>${inst ? 'Upload your documents, then run the pre-check.' : 'Run checks to read documents, verify sources and score this application.'}</div>`}`;
+}
+
+async function runChecks(id) {
+  const b = $('#runBtn'); b.disabled = true; b.textContent = 'checking…';
+  try { await api(`/api/apps/${id}/run`, {method: 'POST'}); } catch (e) { alert(e.message); }
+  openApp(id);
+}
+
+async function uploadDoc(id, doc) {
+  const input = document.querySelector(`input[data-doc="${doc}"]`);
+  if (!input.files[0]) { $('#upMsg').innerHTML = `<p class="msg err">Choose a PDF for ${esc(doc)} first.</p>`; return; }
+  const fd = new FormData(); fd.append('doc_type', doc); fd.append('file', input.files[0]);
+  try { await api(`/api/apps/${id}/documents`, {method: 'POST', body: fd}); await openApp(id);
+        $('#upMsg').innerHTML = `<p class="msg ok">${esc(doc)} uploaded and encrypted. Run the pre-check again.</p>`; }
+  catch (e) { $('#upMsg').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+}
+
+async function submitApp(id) {
+  try { await api(`/api/apps/${id}/submit`, {method: 'POST'}); openApp(id); }
+  catch (e) { $('#upMsg').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+}
+
+async function reviewFinding(fid, verdict) {
+  const reason = verdict === 'DISMISSED' ? prompt('Reason for dismissing this finding?') : (prompt('Note (optional)') || '');
+  if (reason === null) return;
+  try { await api(`/api/apps/${current}/findings/${fid}/review`, {method: 'POST', body: JSON.stringify({verdict, reason})}); openApp(current); }
+  catch (e) { alert(e.message); }
+}
+
+async function decide(id) {
+  try {
+    await api(`/api/apps/${id}/decision`, {method: 'POST', body: JSON.stringify({outcome: $('#dOutcome').value, reason: $('#dReason').value, checker: $('#dChecker').value})});
+    openApp(id);
+  } catch (e) { $('#dMsg').innerHTML = `<p class="msg err">Refused. ${esc(e.message)}</p>`; }
+}
+
+async function confirmDecision(id, agree) {
+  const note = agree ? '' : prompt('Why are you sending this decision back?');
+  if (note === null) return;
+  try { await api(`/api/apps/${id}/decision/confirm`, {method: 'POST', body: JSON.stringify({agree, note})}); openApp(id); }
+  catch (e) { $('#dMsg').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+}
+
+async function downloadPack(id) {
+  const r = await fetch(`/api/apps/${id}/evidence-pack`);
+  if (!r.ok) { alert((await r.json()).detail); return; }
+  const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(await r.blob()), download: `${id}-evidence-pack.zip`});
+  a.click();
+}
+
+function showEvidence(i) {
+  const x = evidenceStore[i];
+  $('#evTitle').textContent = x.title;
+  $('#evBody').innerHTML = `<p class="s" style="margin:0 0 10px">${esc(x.message)}</p>` + x.evidence.map(e => `<div class="m">${esc(e.app)} / ${esc(e.doc)}${e.kind === 'ela' ? ' · edited area shown in red' : e.kind === 'boxes' ? ' · computers found in the photo' : ''}</div>
+    <img alt="Evidence from ${esc(e.doc)}" src="/api/evidence?app=${encodeURIComponent(e.app)}&doc=${encodeURIComponent(e.doc)}&kind=${e.kind}&finding=${x.id}">`).join('');
+  $('#ev').showModal();
+}
+
+/* ---------- rules: the norms and recommendation tables ---------- */
+const cellText = v => String(v ?? '').replace(/^"(.*)"$/, '$1');
+const plainCell = (v, out) => { const t = cellText(v); return out ? label(t) : t === '> 0' ? '1 or more' : t || 'any'; };
+function jdmTable(jdm, editable) {
+  const t = jdm.nodes.find(n => n.type === 'decisionTableNode').content;
+  const cols = [...t.inputs.map(c => ({...c, io: 'in'})), ...t.outputs.map(c => ({...c, io: 'out'}))];
+  return `<table class="grid"><tr>${cols.map(c => `<th>${esc(c.name)}</th>`).join('')}</tr>
+    ${t.rules.map((r, ri) => `<tr>${cols.map(c => `<td class="${c.io}">${editable && c.io === 'out'
+      ? `<input data-rule="${ri}" data-col="${c.id}" value="${esc(cellText(r[c.id]))}" aria-label="${esc(c.name)}, ${esc(cellText(r.i0) || 'any other programme')}">`
+      : esc(editable ? cellText(r[c.id]) || 'Any other programme' : plainCell(r[c.id], c.io === 'out'))}</td>`).join('')}</tr>`).join('')}</table>`;
+}
+async function loadRules() {
+  RULES = await api('/api/rules');
+  $('#normsTable').innerHTML = jdmTable(RULES.norms, true);
+  $('#escTable').innerHTML = jdmTable(RULES.escalation, false);
+  $('#checklists').innerHTML = Object.values(RULES.rules.categories).map(c => `
+    <div class="row"><div class="main"><div class="t">${esc(c.label)}</div><div class="s">${Object.keys(c.required).map(esc).join(' · ')}</div></div></div>`).join('');
+}
+async function importNorms() {
+  const f = $('#normsFile').files[0];
+  if (!f) { $('#importMsg').innerHTML = '<p class="msg err">Choose a norms circular (PDF) or norms file (JSON) first.</p>'; return; }
+  const fd = new FormData(); fd.append('file', f);
+  try {
+    const r = await api('/api/rules/norms/import', {method: 'POST', body: fd});
+    const t = RULES.norms.nodes.find(n => n.type === 'decisionTableNode').content;
+    document.querySelectorAll('#normsTable input').forEach(i => i.classList.remove('changed'));
+    for (const row of r.rows) {
+      const ri = t.rules.findIndex(x => cellText(x.i0) === row.programme);
+      for (const [col, v] of Object.entries(row.values)) {
+        const input = document.querySelector(`#normsTable input[data-rule="${ri}"][data-col="${col}"]`);
+        if (input.value !== v) { input.value = v; input.classList.add('changed'); }
+      }
+    }
+    $('#importMsg').innerHTML = `<p class="msg ok">Read ${esc(f.name)} (${r.source}). ${r.changes.length
+      ? `${r.changes.length} change(s), highlighted below: ` + r.changes.map(c => `${esc(c.programme)}, ${esc(c.norm)} ${esc(c.from)} → ${esc(c.to)}`).join('; ') + '. Publish to apply.'
+      : 'Same as the current rules; nothing to publish.'}</p>`;
+  } catch (e) { $('#importMsg').innerHTML = `<p class="msg err">${esc(e.message.replace(/^\d+: /, ''))}</p>`; }
+}
+async function publishNorms() {
+  const jdm = structuredClone(RULES.norms);
+  const t = jdm.nodes.find(n => n.type === 'decisionTableNode').content;
+  document.querySelectorAll('#normsTable input').forEach(i => t.rules[i.dataset.rule][i.dataset.col] = i.value);
+  try {
+    const r = await api('/api/rules/norms', {method: 'PUT', body: JSON.stringify(jdm)});
+    $('#rulesMsg').innerHTML = `<p class="msg ok">Published ${esc(r.version)}. Re-run checks to apply.</p>`;
+    RULES = null;
+  } catch (e) { $('#rulesMsg').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+}
+
+/* ---------- alerts + audit ---------- */
+async function loadAlertCount() {
+  const a = await api('/api/alerts').catch(() => []);
+  $('#alertCount').textContent = a.length || '';
+  return a;
+}
+async function loadAlerts() {
+  const a = await loadAlertCount();
+  $('#alertsBody').innerHTML = `<div class="group">${a.map(x => `
+    <div class="row q" onclick="goTo('${x.app}')"><div class="main"><div>${chip(x.severity)} <span class="t">${esc(x.title)}</span></div>
+      <div class="s">${esc(x.institution)} · ${x.app}</div><div class="m">${esc(x.message)}</div></div></div>`).join('') ||
+    '<div class="row"><div class="main"><div class="t">No open alerts</div><div class="s">Alerts appear here when checks find something your role must act on.</div></div></div>'}</div>
+    <p class="foot">Routed by role: missing and expiring documents to the institution, integrity and source mismatches to scrutiny officers, inspection recommendations to approvers.</p>`;
+}
+function goTo(id) { document.querySelector('nav button[data-t=queue]').click(); openApp(id); }
+
+async function loadPlan() {
+  const p = await api(`/api/inspection-plan?budget=${encodeURIComponent($('#budget').value)}`);
+  const row = (r, i) => `<div class="row" ${i === undefined ? '' : 'style="align-items:flex-start"'}>
+      ${i === undefined ? '' : `<div class="score" style="min-width:44px"><b style="font-size:28px">${i + 1}</b><span>visit</span></div>`}
+      <div class="main"><div class="t">${esc(r.institution)} <span class="m">· ${r.app} · ${esc(r.state)}</span></div>
+        <div class="s">Proof score ${r.proof} · ${r.contradicted} claims contradicted · ${r.high} serious findings</div>
+        ${r.reasons.length ? `<div class="m">Why: ${r.reasons.map(esc).join(' · ')}</div>` : ''}
+        ${r.inspect_with.length ? `<div class="m"><b>Inspect together with:</b> ${r.inspect_with.map(esc).join(', ')} (shared faculty or photos)</div>` : ''}</div>
+      <div class="risk">${r.priority}<small>priority</small></div></div>`;
+  $('#planBody').innerHTML = `
+    <div class="group">${p.plan.map(row).join('') || '<div class="row"><div class="main"><div class="t">Nothing to inspect</div><div class="s">No submitted application has serious findings.</div></div></div>'}</div>
+    <p class="msg ok">${p.visits} of ${p.budget} visits used · covers ${p.high_covered_pct}% of all serious findings in the queue.</p>
+    ${p.not_planned.length ? `<h4>Not in this plan</h4><div class="group">${p.not_planned.map(r => row(r)).join('')}</div>` : ''}
+    <p class="foot">Priority = 10 × contradicted claims + 5 × serious findings + half of (100 − proof score). Officers can change the order; the plan is advice, not a decision.</p>`;
+}
+
+async function loadAudit() {
+  const {chain, entries} = await api('/api/audit');
+  $('#auditBody').innerHTML = `
+    <div class="group"><div class="row"><div class="main"><div class="t">Hash chain ${chain.ok ? 'intact' : 'broken at entry ' + chain.broken_at}</div>
+      <div class="s">${chain.entries} entries · each entry stores the SHA-256 of the one before it</div></div>${chip(chain.ok ? 'VERIFIED' : 'MISMATCH')}</div></div>
+    <h4>Entries, newest first</h4>
+    <div class="group">${entries.reverse().map(e => `
+      <div class="row"><div class="main"><div class="t">${words(e.action)} <span class="m">· ${esc(e.actor)}</span></div>
+        <div class="mono" style="word-break:break-all">${esc(JSON.stringify(e.payload)).slice(0, 240)}</div></div>
+        <div class="mono" style="text-align:right">${e.ts.replace('T', ' ')}<br>${e.hash.slice(0, 12)}</div></div>`).join('') ||
+      '<div class="row"><div class="main"><div class="t">No entries yet</div><div class="s">Run checks on an application to start the log.</div></div></div>'}</div>`;
+}
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  ['queue', 'alerts', 'rules', 'inspect', 'audit'].forEach(t => $('#' + t).hidden = t !== b.dataset.t);
+  if (b.dataset.t === 'inspect') loadPlan();
+  if (b.dataset.t === 'alerts') loadAlerts();
+  if (b.dataset.t === 'rules') loadRules();
+  if (b.dataset.t === 'audit') loadAudit();
+});
+document.addEventListener('change', e => {  // show the chosen file's name next to its picker button
+  const pick = e.target.closest('.picker');
+  if (pick) pick.querySelector('.fname').textContent = e.target.files[0]?.name || 'no file chosen';
+});
+$('#fire').onchange = () => api('/api/sources', {method: 'POST', body: JSON.stringify({down: $('#fire').checked ? ['fire'] : []})});
+boot();
+</script>
+</body></html>
