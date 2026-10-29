@@ -133,6 +133,18 @@ assert OFF.get("/api/apps/APP-2/revision.png", params={"doc": "affidavit.pdf", "
 cov = next(f for f in OFF.get("/api/apps/APP-40").json()["run"]["findings"] if f["check"] == "VALUE_COVERED")
 assert "30-06-2026" in cov["message"] and "30-06-2028" in cov["message"]
 
+# analyse any document; colleges start drafts and see live norms
+an = OFF.post("/api/analyse", files={"file": ("a.pdf", storage.read(gen_data.DATA / "apps" / "APP-2" / "affidavit.pdf"))}).json()
+assert an["signature"]["status"] == "changed after signing" and an["revisions"] == 3 and an["seen_in"][0]["app"] == "APP-2"
+assert OFF.post("/api/analyse", files={"file": ("x.pdf", b"%PDF-1.4 junk")}).status_code == 422
+wi = INST.get("/api/what-if", params={"intake": 240, "faculty": 30, "classrooms": 2}).json()
+assert wi["faculty_needed"] == 48 and wi["faculty_short"] == 18 and wi["growth_warning"]
+draft = INST.post("/api/apps/new", json={"category": "INCREASE_INTAKE", "proposed_intake": 180, "faculty_count": 36,
+                                          "classroom_areas_sqm": [66, 66], "building_age_years": 5}).json()
+assert INST.get(f"/api/apps/{draft['id']}").json()["application"]["status"] == "DRAFT"
+assert OFF.post("/api/apps/new", json={"category": "INCREASE_INTAKE", "proposed_intake": 1, "faculty_count": 1,
+                                        "classroom_areas_sqm": [66], "building_age_years": 1}).status_code == 403
+
 # alerts are routed by role
 assert {a["type"] for a in APR.get("/api/alerts").json()} == {"INSPECTION_RECOMMENDED"}
 assert "SCAN_TAMPER" in {a["type"] for a in OFF.get("/api/alerts").json()}

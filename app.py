@@ -230,18 +230,53 @@ def webhook(body: Webhook, x_portal_token: str = Header("")):
     token = os.environ.get("PRAMAAN_PORTAL_TOKEN", "demo-portal-token")
     if not secrets.compare_digest(x_portal_token, token):
         raise HTTPException(401, "bad portal token")
+    return create_draft(body.aicte_id, body.category, body.model_dump(exclude={"aicte_id", "category"}), "aicte-portal")
+
+
+def create_draft(aicte_id, category, fields, actor):
     master = json.loads((DATA / "master.json").read_text())
     rules = json.loads(checks.RULES_FILE.read_text(encoding="utf-8"))
-    if body.aicte_id not in master or body.category not in rules["categories"]:
+    if aicte_id not in master or category not in rules["categories"]:
         raise HTTPException(422, "unknown institution or category")
+    if fields["proposed_intake"] <= 0 or fields["faculty_count"] <= 0 or not fields["classroom_areas_sqm"]:
+        raise HTTPException(422, "Intake, faculty and at least one classroom are required")
     app_id = f"APP-{len(list((DATA / 'apps').iterdir())) + 1}"
-    a = {"id": app_id, "aicte_id": body.aicte_id, "institution": master[body.aicte_id]["name"], "category": body.category,
+    a = {"id": app_id, "aicte_id": aicte_id, "institution": master[aicte_id]["name"], "category": category,
          "status": "DRAFT", "programme_level": "UG Engineering", "application_date": date.today().isoformat(),
-         "submitted_at": datetime.now().isoformat(timespec="seconds"), "photos": [], **body.model_dump(exclude={"aicte_id", "category"})}
+         "submitted_at": datetime.now().isoformat(timespec="seconds"), "photos": [], **fields}
     (DATA / "apps" / app_id / "photos").mkdir(parents=True)
     (DATA / "apps" / app_id / "application.json").write_text(json.dumps(a, indent=2))
-    audit("aicte-portal", "WEBHOOK_INTAKE", {"app": app_id, "aicte_id": body.aicte_id})
+    audit(actor, "DRAFT_CREATED", {"app": app_id, "aicte_id": aicte_id, "category": category})
     return {"id": app_id, "status": "DRAFT"}
+
+
+class NewApplication(BaseModel):
+    category: str
+    proposed_intake: int
+    faculty_count: int
+    classroom_areas_sqm: list[int]
+    building_age_years: int
+
+
+@app.post("/api/apps/new")
+def new_application(body: NewApplication, x_role: str = Header(""), x_user: str = Header("")):
+    if x_role != "institution":
+        raise HTTPException(403, "Only a college can start its own application")
+    return create_draft(x_user, body.category, body.model_dump(exclude={"category"}), f"institution:{x_user}")
+
+
+@app.get("/api/what-if")
+def what_if(intake: int, faculty: int, classrooms: int, x_role: str = Header(""), x_user: str = Header("")):
+    """Live norms for a college planning its intake: what the current rules need, against what it declares."""
+    table = checks.zen_eval(checks.NORMS_FILE, {"programme_level": "UG Engineering"})
+    years = json.loads(checks.RULES_FILE.read_text(encoding="utf-8"))["norms"]["programme_years"]
+    need_faculty = -(-intake * years // int(table["faculty_ratio_max"]))
+    last = json.loads((DATA / "master.json").read_text()).get(x_user, {}).get("last_approval") if x_role == "institution" else None
+    growth = last and round(100 * (intake - last["intake"]) / last["intake"])
+    return {"students": intake * years, "faculty_needed": need_faculty, "faculty_short": max(0, need_faculty - faculty),
+            "faculty_ratio_max": table["faculty_ratio_max"], "classroom_min_sqm": table["classroom_min_sqm"],
+            "last_approval": last, "growth_pct": growth,
+            "growth_warning": bool(last and growth >= 50 and classrooms <= last["classrooms"])}
 
 
 class Review(BaseModel):
@@ -601,6 +636,55 @@ def watch():
         s["runs"][r["app"]] = run
     save(s)
     return events
+
+
+@app.post("/api/analyse")
+def analyse(file: UploadFile = File(...), x_role: str = Header("")):
+    """Any document, checked on its own: signature, saved versions, covered values, edited scans, issuer, reuse elsewhere."""
+    if x_role not in OFFICERS | {"auditor"}:
+        raise HTTPException(403, "Officers and auditors only")
+    data = file.file.read(MAX_UPLOAD + 1)
+    if len(data) > MAX_UPLOAD:
+        raise HTTPException(422, "Upload a file of at most 20 MB")
+    try:
+        if data.startswith(b"%PDF"):
+            x = checks.extract(data, "document", [])
+            if x["jpeg"]:  # scanned page: read every line, not only known labels
+                x["fields"] = {f"line {i + 1}": t for i, (_, t, _) in enumerate(checks.ocr(Image.open(io.BytesIO(x["jpeg"])).convert("RGB")))}
+            jpeg, sig = x["jpeg"], checks.validate_dsc(data)
+            revs = checks.revisions(data)
+            covered = checks.covered_values(data)
+        else:
+            img = Image.open(io.BytesIO(data)).convert("RGB")
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=95)
+            jpeg, sig, revs, covered = buf.getvalue(), None, [len(data)], []
+            x = {"method": "Read from the image (text recognition)", "fields": {f"line {i + 1}": t for i, (_, t, _) in enumerate(checks.ocr(img))}}
+    except Exception as e:  # trust boundary: a malformed upload gets a clear answer, not a crash
+        raise HTTPException(422, f"Could not read this file: {str(e)[:120]}")
+    report = {"name": file.filename, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "method": x["method"],
+              "fields": x["fields"], "revisions": len(revs), "covered": covered, "signature": sig and {
+                  "status": "intact and unedited" if sig["intact"] and sig["valid"] and sig["coverage"] == "ENTIRE_FILE" and sig["docmdp_ok"]
+                  else "changed after signing" if sig["intact"] and sig["valid"] else "broken",
+                  "trusted": sig["trusted"], "signer": sig["signer"]}}
+    if jpeg:
+        peak, box = checks.ela_check(jpeg, 600)
+        heat, _ = checks.ela_map(jpeg)
+        out = io.BytesIO()
+        Image.fromarray(np.clip(heat * 10, 0, 255).astype(np.uint8)).save(out, "PNG")
+        report.update(edit_signal=round(peak, 1), edited=peak >= checks.ELA_THRESHOLD, heatmap=base64.b64encode(out.getvalue()).decode())
+    issuers = []
+    for field, source in (("NOC No", "fire"), ("DigiLocker URI", "digilocker"), ("Transaction ID", "payments")):
+        if field in x["fields"]:
+            try:
+                issuers.append({"source": source, "key": x["fields"][field], "record": checks.registry_lookup(source, x["fields"][field])})
+            except ConnectionError as e:
+                issuers.append({"source": source, "key": x["fields"][field], "error": str(e)})
+    report["issuers"] = issuers
+    report["seen_in"] = [{"app": o["app"], "institution": o["institution"], "doc": o["doc"]}
+                         for o in checks.peer_files("") if o["sha"] == report["sha256"]]
+    audit(x_role, "DOCUMENT_ANALYSED", {"name": file.filename, "sha256": report["sha256"]})
+    return report
 
 
 @app.get("/api/inspection-plan")

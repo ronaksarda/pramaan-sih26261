@@ -41,7 +41,7 @@
 <!-- signed-in app -->
 <header class="menubar app">
   <div class="mb-left"><span class="word" title="प्रमाण, Hindi for proof"><span class="en">pramaan</span><span class="hi-alt" lang="hi">प्रमाण</span></span>
-    <nav aria-label="Sections"><button data-t="queue" class="on">applications</button><button data-t="alerts">alerts <span class="count" id="alertCount"></span></button><button data-t="rules">rules</button><button data-t="network" id="networkTab">network</button><button data-t="inspect" id="inspectTab">inspection plan</button><button data-t="issuer" id="issuerTab">issuer simulator</button><button data-t="audit" id="auditTab">audit trail</button><a href="/check.html">public check</a></nav></div>
+    <nav aria-label="Sections"><button data-t="queue" class="on">applications</button><button data-t="alerts">alerts <span class="count" id="alertCount"></span></button><button data-t="rules">rules</button><button data-t="network" id="networkTab">network</button><button data-t="inspect" id="inspectTab">inspection plan</button><button data-t="analyse" id="analyseTab">analyse a document</button><button data-t="issuer" id="issuerTab">issuer simulator</button><button data-t="audit" id="auditTab">audit trail</button><a href="/check.html">public check</a></nav></div>
   <svg class="mb-mark" aria-hidden="true"><use href="#mark"/></svg>
   <div class="mb-right">
     <label class="switch" id="fireWrap" title="Simulate the state fire registry going offline"><input type="checkbox" id="fire" role="switch"> fire registry offline</label>
@@ -57,6 +57,7 @@
       <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title" id="listTitle">applications</span></div>
       <div id="list"></div>
       <p class="foot" id="listFoot"></p>
+      <div class="row-actions" style="margin:0 16px 12px" id="newApp" hidden><button class="aqua" onclick="newApplication()">start a new application</button></div>
       <div class="row-actions" style="margin:0 16px 12px"><button class="plain sm" id="runAll" onclick="runAll()">check all submitted</button><span class="m" id="runAllMsg"></span></div>
     </div>
     <div class="window case-win">
@@ -101,6 +102,16 @@
         <input id="budget" type="number" min="1" max="50" value="3" style="width:70px;height:32px;border:1px solid #bdbdbd;border-radius:6px;padding:0 8px">
         <button class="aqua" onclick="loadPlan()">plan visits</button></div>
       <div id="planBody"></div>
+    </div></div></section>
+  <section id="analyse" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">analyse a document</span></div>
+    <div class="pad">
+      <h4 style="margin-top:4px">Check any certificate on its own</h4>
+      <p class="foot" style="margin:-2px 2px 12px">Drop in a PDF or a photo of a document. Pramaan checks its signature, every saved version, values hidden under boxes,
+        edited areas on scans, what the issuing office says, and whether any college already submitted the same file.</p>
+      <div class="row-actions" style="margin-top:0"><label class="picker"><input type="file" id="anFile" accept="application/pdf,image/*" aria-label="Document to analyse">
+        <span class="plain sm">choose PDF or image</span><span class="fname">no file chosen</span></label>
+        <button class="aqua" id="anBtn" onclick="analyseDoc()">analyse</button></div>
+      <div id="anBody"></div>
     </div></div></section>
   <section id="issuer" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">issuer simulator · state fire department</span></div>
     <div class="pad">
@@ -173,6 +184,8 @@ async function boot() {
   $('#fireWrap').hidden = !officer();
   $('#auditTab').hidden = $('#inspectTab').hidden = $('#networkTab').hidden = !(officer() || role() === 'auditor');
   $('#runAll').hidden = $('#issuerTab').hidden = !officer();
+  $('#analyseTab').hidden = !(officer() || role() === 'auditor');
+  $('#newApp').hidden = role() !== 'institution';
   if (officer()) api('/api/sources').then(s => $('#fire').checked = s.down.includes('fire'));
   loadList();
 }
@@ -261,10 +274,56 @@ function correctionHtml(c) {
         <td>${d.asked ? chip('ACCEPTED').replace('Accepted', 'Asked for') : chip('MISSING').replace('Missing', 'Not asked for')}</td></tr>`)).join('')}</table></div>` : ''}`;
 }
 
+function readinessHtml(required, docs, run) {
+  const blockedDocs = new Set((run?.findings || []).filter(f => f.action === 'RECTIFY').map(f => f.doc || (f.evidence[0] || {}).doc));
+  const ready = required.filter(d => docs.includes(d) && !blockedDocs.has(d)).length, pct = Math.round(100 * ready / required.length);
+  const C = 2 * Math.PI * 34;
+  return `<div class="group ready"><div class="row"><svg viewBox="0 0 80 80" class="ring" role="img" aria-label="${pct}% ready">
+      <circle cx="40" cy="40" r="34" class="track"/><circle cx="40" cy="40" r="34" class="fill" style="stroke-dasharray:${C * pct / 100} ${C}"/>
+      <text x="40" y="45" text-anchor="middle">${pct}%</text></svg>
+    <div class="main"><div class="t">${ready} of ${required.length} documents ready</div>
+      <div class="s">${!run ? 'Upload your documents, then run the pre-check to see what still needs fixing.' : ready === required.length ? 'Everything on the checklist is in. Check your proof score below before submitting.' : 'Missing or failing documents keep you from submitting.'}</div></div></div></div>`;
+}
+
+async function newApplication() {
+  const v = id => $(id).value;
+  $('#case').innerHTML = `<h2>New application</h2><p class="meta">Draft for ${esc(ME.name)}. You can upload documents after creating it.</p>
+    <div class="group form" style="margin-top:14px">
+      <div class="row"><label for="naCat">Category</label><select id="naCat">${Object.entries(RULES ? RULES.rules.categories : (RULES = await api('/api/rules')).rules.categories).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}</select></div>
+      <div class="row"><label for="naIntake">Proposed intake</label><input id="naIntake" type="number" min="1" value="120"></div>
+      <div class="row"><label for="naFaculty">Faculty</label><input id="naFaculty" type="number" min="1" value="24"></div>
+      <div class="row"><label for="naRooms">Classroom areas (m²)</label><input id="naRooms" value="66, 66, 66" placeholder="comma-separated, one per classroom"></div>
+      <div class="row"><label for="naAge">Building age (years)</label><input id="naAge" type="number" min="0" value="10"></div></div>
+    <div id="whatIf"></div>
+    <div class="row-actions"><button class="aqua" onclick="createDraft()">create draft</button><span id="naMsg"></span></div>`;
+  ['#naIntake', '#naFaculty', '#naRooms'].forEach(id => $(id).oninput = whatIf);
+  whatIf();
+}
+const rooms = () => $('#naRooms').value.split(',').map(x => parseInt(x)).filter(x => x > 0);
+async function whatIf() {
+  const w = await api(`/api/what-if?intake=${+$('#naIntake').value || 0}&faculty=${+$('#naFaculty').value || 0}&classrooms=${rooms().length}`);
+  const small = rooms().filter(r => r < w.classroom_min_sqm);
+  $('#whatIf').innerHTML = `<h4>What the current norms need for this intake</h4><div class="group">
+    <div class="row"><div class="main"><div class="t">Faculty: at least ${w.faculty_needed}</div><div class="s">${w.students} students at 1:${w.faculty_ratio_max}</div></div>
+      ${chip(w.faculty_short ? 'MISMATCH' : 'VERIFIED').replace(w.faculty_short ? 'Mismatch' : 'Verified', w.faculty_short ? `${w.faculty_short} short` : 'Enough')}</div>
+    <div class="row"><div class="main"><div class="t">Classrooms: at least ${w.classroom_min_sqm} m² each</div><div class="s">${small.length ? `${small.length} classroom(s) below the norm` : 'All declared classrooms meet the norm'}</div></div>
+      ${chip(small.length ? 'MISMATCH' : 'VERIFIED').replace(small.length ? 'Mismatch' : 'Verified', small.length ? 'Too small' : 'OK')}</div>
+    ${w.last_approval ? `<div class="row"><div class="main"><div class="t">Change since ${esc(w.last_approval.cycle)}: intake ${w.last_approval.intake} → ${+$('#naIntake').value} (${w.growth_pct > 0 ? '+' : ''}${w.growth_pct}%)</div>
+      <div class="s">${w.growth_warning ? 'Growth of half or more with no new classrooms is flagged; plan evidence of the added capacity.' : 'Growth is in line with declared capacity.'}</div></div>
+      ${chip(w.growth_warning ? 'MEDIUM' : 'VERIFIED').replace(w.growth_warning ? 'Medium' : 'Verified', w.growth_warning ? 'Will be flagged' : 'OK')}</div>` : ''}</div>`;
+}
+async function createDraft() {
+  try {
+    const r = await api('/api/apps/new', {method: 'POST', body: JSON.stringify({category: $('#naCat').value, proposed_intake: +$('#naIntake').value,
+      faculty_count: +$('#naFaculty').value, classroom_areas_sqm: rooms(), building_age_years: +$('#naAge').value})});
+    openApp(r.id);
+  } catch (e) { $('#naMsg').innerHTML = `<span class="msg err">${esc(e.message)}</span>`; }
+}
+
 function institutionHtml(a, docs, run) {
   const required = Object.keys(RULES.rules.categories[a.category].required);
   const blocking = (run?.findings || []).filter(f => f.action === 'RECTIFY');
-  return letterHtml(a) + `
+  return letterHtml(a) + readinessHtml(required, docs, run) + `
     <h4>Checklist: ${esc(RULES.rules.categories[a.category].label)}</h4>
     <div class="group">${required.map(d => `
       <div class="row upload"><div class="main"><div class="t">${esc(d)}</div>
@@ -572,6 +631,29 @@ async function loadNetwork() {
     <p class="foot">${groups.length} linked groups · ${nodes.length} colleges · ${edges.length} links. Circle size grows with the case's risk score.</p>`;
 }
 
+async function analyseDoc() {
+  const f = $('#anFile').files[0];
+  if (!f) { $('#anBody').innerHTML = '<p class="msg err">Choose a PDF or an image first.</p>'; return; }
+  const fd = new FormData(); fd.append('file', f);
+  $('#anBtn').disabled = true; $('#anBody').innerHTML = '<p class="foot">Reading the file…</p>';
+  try {
+    const r = await api('/api/analyse', {method: 'POST', body: fd});
+    const ok = (good, yes, no) => `${chip(good ? 'VERIFIED' : 'MISMATCH').replace(good ? 'Verified' : 'Mismatch', good ? yes : no)}`;
+    $('#anBody').innerHTML = `<div class="group">
+      <div class="row"><div class="main"><div class="t">Digital signature</div><div class="s">${r.signature ? `${esc(r.signature.signer)} · ${r.signature.trusted ? 'trusted root' : 'unknown root'}` : 'Not digitally signed'}</div></div>
+        ${r.signature ? ok(r.signature.status === 'intact and unedited', 'Intact', r.signature.status === 'broken' ? 'Broken' : 'Changed after signing') : chip('MANUAL_REVIEW').replace('Manual review', 'None')}</div>
+      <div class="row"><div class="main"><div class="t">Saved versions</div><div class="s">${r.revisions} version${r.revisions === 1 ? '' : 's'} inside the file</div></div>${ok(r.revisions === 1, 'One version', 'Edited later')}</div>
+      <div class="row"><div class="main"><div class="t">Values hidden under boxes</div><div class="s">${r.covered.map(c => `'${esc(c.hidden)}' covered${c.shown ? `, shows '${esc(c.shown)}'` : ''}`).join('; ') || 'None found'}</div></div>${ok(!r.covered.length, 'None', 'Found')}</div>
+      ${r.edit_signal !== undefined ? `<div class="row"><div class="main"><div class="t">Edited areas on the image</div><div class="s">Edit signal ${r.edit_signal} (clean scans stay below 13)</div></div>${ok(!r.edited, 'Looks clean', 'Edited area')}</div>` : ''}
+      ${r.issuers.map(i => `<div class="row"><div class="main"><div class="t">Issuing office: ${esc(i.source)}</div><div class="s">${esc(i.key)} · ${i.error ? esc(i.error) : i.record ? esc(JSON.stringify(i.record)).slice(0, 160) : 'no record of this number'}</div></div>${ok(!!i.record, 'On record', i.error ? 'Offline' : 'Not on record')}</div>`).join('')}
+      <div class="row"><div class="main"><div class="t">Submitted by any college before</div><div class="s">${r.seen_in.map(o => `${esc(o.institution)} (${esc(o.app)}, ${esc(o.doc)})`).join('; ') || 'Not seen in any application'}</div></div>${ok(r.seen_in.length < 2, r.seen_in.length ? 'Seen once' : 'New', 'Reused')}</div>
+    </div>
+    ${r.heatmap ? `<h4>Edit heatmap (bright = changed after saving)</h4><img class="heat" alt="Edit heatmap" src="data:image/png;base64,${r.heatmap}">` : ''}
+    <h4>What Pramaan read (${esc(r.method)})</h4><div class="mono" style="word-break:break-word">${esc(Object.entries(r.fields).map(([k, v]) => `${k}: ${v}`).join(' · ')) || 'No text found'}</div>`;
+  } catch (e) { $('#anBody').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+  $('#anBtn').disabled = false;
+}
+
 async function loadIssuer() {
   const rows = await api('/api/issuer/fire');
   rows.sort((x, y) => (y.app ? 1 : 0) - (x.app ? 1 : 0));
@@ -601,7 +683,7 @@ async function loadAudit() {
 
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
-  ['queue', 'alerts', 'rules', 'network', 'inspect', 'issuer', 'audit'].forEach(t => $('#' + t).hidden = t !== b.dataset.t);
+  ['queue', 'alerts', 'rules', 'network', 'inspect', 'analyse', 'issuer', 'audit'].forEach(t => $('#' + t).hidden = t !== b.dataset.t);
   if (b.dataset.t === 'issuer') loadIssuer();
   if (b.dataset.t === 'network') loadNetwork();
   if (b.dataset.t === 'inspect') loadPlan();
