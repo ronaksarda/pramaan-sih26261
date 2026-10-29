@@ -132,7 +132,7 @@ h4{font-size:15px;font-weight:600;margin:26px 2px 8px;letter-spacing:-.1px}
 
 .chip{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:5px;white-space:nowrap;background:var(--fill);color:var(--ink2)}
 .HIGH,.MISMATCH,.EXPIRED,.RECOMMEND_INSPECTION,.ORDER_INSPECTION,.MISSING{background:var(--redbg);color:var(--red)}
-.MEDIUM,.AWAITING_CHECKER,.ADDITIONAL_EVIDENCE,.MANUAL_REVIEW,.ISSUE_DEFICIENCY,.RECTIFY,.DRAFT,.SOURCE_UNAVAILABLE{background:var(--amberbg);color:var(--amber)}
+.MEDIUM,.AWAITING_CHECKER,.RECTIFICATION,.ADDITIONAL_EVIDENCE,.MANUAL_REVIEW,.ISSUE_DEFICIENCY,.RECTIFY,.DRAFT,.SOURCE_UNAVAILABLE{background:var(--amberbg);color:var(--amber)}
 .VERIFIED,.CLEAR,.APPROVE,.ACCEPTED,.UPLOADED,.SUBMITTED{background:var(--greenbg);color:var(--green)}
 
 .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:16px}

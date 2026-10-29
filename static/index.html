@@ -117,7 +117,7 @@
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const words = s => String(s ?? '').replaceAll('_', ' ').toLowerCase().replace(/^./, c => c.toUpperCase()).replace(/\bGps\b|\bgps\b/, 'GPS').replace(/\bDsc\b/, 'DSC');
-const LABEL = {AWAITING_CHECKER: 'Awaiting second officer', CLEAR: 'No concerns', RECTIFY: 'College must fix', ADDITIONAL_EVIDENCE: 'More evidence needed',
+const LABEL = {RECTIFICATION: 'Correcting', AWAITING_CHECKER: 'Awaiting second officer', CLEAR: 'No concerns', RECTIFY: 'College must fix', ADDITIONAL_EVIDENCE: 'More evidence needed',
   RECOMMEND_INSPECTION: 'Recommend inspection', SOURCE_UNAVAILABLE: 'Office offline', ORDER_INSPECTION: 'Inspection ordered',
   ISSUE_DEFICIENCY: 'Deficiency letter', APPROVE: 'Approved'};
 const label = s => LABEL[s] || words(s);
@@ -220,21 +220,46 @@ function changesHtml(c) {
       <td class="${r.pct > 0 ? 'up' : r.pct < 0 ? 'down' : ''}">${r.pct === null ? '–' : (r.pct > 0 ? '+' : '') + r.pct + ' %'}</td></tr>`).join('')}</table></div>`;
 }
 
+function letterHtml(a) {
+  const r = a.rectification;
+  if (!r) return '';
+  return `<h4 id="letterHead">Deficiency letter, correction round ${r.round}</h4>
+    <div class="group"><div class="row"><div class="main"><div class="t">Fix these ${r.items.length} item(s) by ${esc(r.due)}</div>
+      <div class="s">Issued by ${esc(r.maker)}, confirmed by ${esc(r.checker)}. Change only what is listed; anything else you change is flagged.</div></div>
+      <a class="plain" href="/api/apps/${a.id}/letter">download signed letter</a></div>
+    ${r.items.map((it, i) => `<div class="row"><div class="main"><div class="t">${i + 1}. ${esc(it.title)}${it.doc ? ` <span class="m">· ${esc(it.doc)}</span>` : ''}</div>
+      <div class="m">${esc(it.message)}</div></div></div>`).join('')}</div>`;
+}
+
+function correctionHtml(c) {
+  if (!c) return '';
+  const fixed = c.items.filter(i => i.fixed).length;
+  return `<h4 id="correctionHead">Correction round ${c.round}: what the college changed</h4>
+    <div class="group"><div class="row"><div class="main"><div class="t">${fixed} of ${c.items.length} requested items fixed</div>
+      <div class="s">${c.changed.filter(d => !d.asked).length} document(s) changed without being asked</div></div></div>
+    ${c.items.map(i => `<div class="row"><div class="main"><div class="t">${esc(i.title)}${i.doc ? ` <span class="m">· ${esc(i.doc)}</span>` : ''}</div></div>
+      ${chip(i.fixed ? 'VERIFIED' : 'MISSING').replace(i.fixed ? 'Verified' : 'Missing', i.fixed ? 'Fixed' : 'Still open')}</div>`).join('')}</div>
+    ${c.changed.length ? `<div class="group" style="margin-top:10px"><table class="grid"><tr><th>Document</th><th>Field</th><th>Before</th><th>After</th><th></th></tr>
+      ${c.changed.flatMap(d => (d.fields.length ? d.fields : [{field: '(file replaced)', old: '', new: ''}]).map(f => `<tr>
+        <td>${esc(d.doc)}</td><td>${esc(f.field)}</td><td>${esc(f.old ?? '–')}</td><td class="${d.asked ? '' : 'down'}">${esc(f.new ?? '–')}</td>
+        <td>${d.asked ? chip('ACCEPTED').replace('Accepted', 'Asked for') : chip('MISSING').replace('Missing', 'Not asked for')}</td></tr>`)).join('')}</table></div>` : ''}`;
+}
+
 function institutionHtml(a, docs, run) {
   const required = Object.keys(RULES.rules.categories[a.category].required);
   const blocking = (run?.findings || []).filter(f => f.action === 'RECTIFY');
-  return `
+  return letterHtml(a) + `
     <h4>Checklist: ${esc(RULES.rules.categories[a.category].label)}</h4>
     <div class="group">${required.map(d => `
       <div class="row upload"><div class="main"><div class="t">${esc(d)}</div>
         <div class="m">${esc(RULES.rules.categories[a.category].required[d])}</div></div>
         ${chip(docs.includes(d) ? 'UPLOADED' : 'MISSING')}
-        ${a.status === 'DRAFT' ? `<label class="picker"><input type="file" accept="application/pdf" data-doc="${esc(d)}" aria-label="Choose ${esc(d)}"><span class="plain sm">choose PDF</span><span class="fname">no file chosen</span></label>
+        ${a.status === 'DRAFT' || a.status === 'RECTIFICATION' ? `<label class="picker"><input type="file" accept="application/pdf" data-doc="${esc(d)}" aria-label="Choose ${esc(d)}"><span class="plain sm">choose PDF</span><span class="fname">no file chosen</span></label>
           <button class="plain sm" onclick="uploadDoc('${a.id}','${esc(d)}')">upload</button>` : ''}</div>`).join('')}</div>
     <div id="upMsg"></div>
-    ${a.status === 'DRAFT' ? `<div class="row-actions">
-      <button class="aqua" id="submitBtn" onclick="submitApp('${a.id}')" ${!run || blocking.length ? 'disabled' : ''}>submit to AICTE</button>
-      <span class="foot">${!run ? 'Run the pre-check first.' : blocking.length ? `${blocking.length} item(s) to fix before you can submit.` : 'Ready to submit.'}</span></div>`
+    ${a.status === 'DRAFT' || a.status === 'RECTIFICATION' ? `<div class="row-actions">
+      <button class="aqua" id="submitBtn" onclick="submitApp('${a.id}')" ${!run || (blocking.length && a.status === 'DRAFT') ? 'disabled' : ''}>${a.status === 'RECTIFICATION' ? 'resubmit to AICTE' : 'submit to AICTE'}</button>
+      <span class="foot">${!run ? 'Run the pre-check first.' : a.status === 'RECTIFICATION' ? 'Re-run the pre-check after uploading your fixes, then resubmit.' : blocking.length ? `${blocking.length} item(s) to fix before you can submit.` : 'Ready to submit.'}</span></div>`
       : '<p class="msg ok">Submitted to AICTE. Officers now see this application.</p>'}`;
 }
 
@@ -265,6 +290,7 @@ async function openApp(id) {
       <div class="stat"><b>${f.filter(x => x.status === 'OPEN').length}</b><span>awaiting review</span></div></div>`}
     <h4>${inst ? 'Pre-check results' : 'Findings'}</h4>${findingsHtml(f)}
     ${proofHtml(run.proof, inst)}
+    ${inst ? '' : correctionHtml(run.correction)}
     ${inst ? '' : changesHtml(run.changes)}
     <h4>Checked with the issuing offices</h4>
     <div class="group">${v.map(x => `

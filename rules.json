@@ -70,7 +70,8 @@
     "phash_max_distance": 6,
     "source_retries": 3,
     "scene_min_confidence": 0.6,
-    "intake_jump_pct": 50
+    "intake_jump_pct": 50,
+    "rectification_days": 15
   },
   "checks": {
     "DOC_MISSING": {
@@ -234,6 +235,12 @@
       "action": "ADDITIONAL_EVIDENCE",
       "clause": "Change since last approval (AICTE approval history)",
       "title": "Intake grew, capacity did not"
+    },
+    "CHANGED_OUTSIDE_REQUEST": {
+      "severity": "MEDIUM",
+      "action": "ADDITIONAL_EVIDENCE",
+      "clause": "Correction scope (deficiency letter)",
+      "title": "Changed something that was not asked for"
     }
   },
   "proof_levels": {

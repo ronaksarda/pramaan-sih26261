@@ -292,7 +292,7 @@ def run(app_id):
     blobs, extracted = {}, {}
     for doc, clause in required.items():
         if not (folder / doc).exists():
-            flag("DOC_MISSING", f"Mandatory document missing: {doc}", clause=clause)
+            flag("DOC_MISSING", f"Mandatory document missing: {doc}", clause=clause, doc=doc)
             continue
         blobs[doc] = storage.read(folder / doc)
         wanted = rules["required_fields"].get(doc, [])
@@ -487,6 +487,28 @@ def run(app_id):
             verifications.append(_ver(doc, "No online source", "MANUAL_REVIEW", None, []))
 
     # 7. escalation: GoRules ZEN decision table over open findings
+    rect = app.get("rectification")
+    correction = None
+    if rect:  # a correction round: what was asked, what changed, and what changed without being asked
+        snap = rect["snapshot"]
+        now_hash = {k: hashlib.sha256(v).hexdigest() for k, v in blobs.items()}
+        changed = sorted(d for d in set(now_hash) | set(snap["doc_hashes"]) if now_hash.get(d) != snap["doc_hashes"].get(d))
+        asked = {it["doc"] for it in rect["items"] if it["doc"]}
+        diffs = []
+        for doc in changed:
+            old, new = snap["fields"].get(doc, {}), docs.get(doc, {})
+            diffs.append({"doc": doc, "asked": doc in asked,
+                          "fields": [{"field": k, "old": old.get(k), "new": new.get(k)}
+                                     for k in sorted(set(old) | set(new)) if old.get(k) != new.get(k)]})
+        for d in diffs:
+            if not d["asked"]:
+                shown = "; ".join(f"{f['field']}: {f['old'] or '(none)'} -> {f['new'] or '(none)'}" for f in d["fields"][:3])
+                flag("CHANGED_OUTSIDE_REQUEST", f"{d['doc']} was replaced in correction round {rect['round']} although the "
+                     f"deficiency letter did not ask for it. {shown or 'File contents changed.'}",
+                     [{"kind": "pdf", "app": app_id, "doc": d["doc"], "bbox": None}] if d["doc"] in blobs else [])
+        still = {(f["check"], f.get("doc") or next((e["doc"] for e in f["evidence"] if e["app"] == app_id), "")) for f in findings}
+        correction = {"round": rect["round"], "due": rect["due"], "changed": diffs,
+                      "items": [{**it, "fixed": (it["check"], it["doc"]) not in still} for it in rect["items"]]}
     claims = proof_claims(app, required, findings, verifications, photos, ghosts, changes)
     levels = rules["proof_levels"]
     proof = {"score": round(100 * sum(levels[c["level"]]["weight"] for c in claims) / len(claims)),
@@ -498,7 +520,7 @@ def run(app_id):
             "norms": table, "ran_at": datetime.now().isoformat(timespec="seconds"), "outcome": outcome,
             "risk_score": min(100, sum(WEIGHT[f["severity"]] for f in findings)),
             "findings": findings, "verifications": verifications, "photos": photos, "extraction": extraction,
-            "proof": proof, "changes": changes,
+            "proof": proof, "changes": changes, "correction": correction,
             "seconds": round(time.time() - t0, 1),
             "doc_hashes": {k: hashlib.sha256(v).hexdigest() for k, v in sorted(blobs.items())}}
 
@@ -519,7 +541,7 @@ def proof_claims(app, required, findings, verifications, photos, ghosts, changes
         for e in f["evidence"]:
             if e["app"] == app["id"] and (f["severity"] == "HIGH" or e["doc"].startswith("photos/")):
                 against.setdefault(e["doc"], f["check"])
-    missing = {f["message"].rsplit(": ", 1)[-1] for f in findings if f["check"] == "DOC_MISSING"}
+    missing = {f["doc"] for f in findings if f["check"] == "DOC_MISSING"}
     ver = {v["doc"]: v for v in verifications}
     claims = []
     for doc in required:

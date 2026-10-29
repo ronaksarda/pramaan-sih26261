@@ -9,7 +9,7 @@ import json
 import os
 import secrets
 import zipfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import numpy as np
 import pymupdf
@@ -120,7 +120,7 @@ def application(app_id):
 def visible(a, role, user):
     if role == "institution":
         return a["aicte_id"] == user
-    return a["status"] == "SUBMITTED"
+    return a["status"] in ("SUBMITTED", "RECTIFICATION")
 
 
 def safe_path(app_id, doc):
@@ -182,7 +182,7 @@ async def upload(app_id: str, doc_type: str = Form(...), file: UploadFile = File
     a = application(app_id)
     if x_role != "institution" or a["aicte_id"] != x_user:
         raise HTTPException(403, "Only the applying institution can upload")
-    if a["status"] != "DRAFT":
+    if a["status"] not in ("DRAFT", "RECTIFICATION"):
         raise HTTPException(409, "Application already submitted")
     rules = json.loads(checks.RULES_FILE.read_text(encoding="utf-8"))
     if doc_type not in rules["categories"][a["category"]]["required"]:
@@ -203,10 +203,13 @@ def submit(app_id: str, x_role: str = Header(""), x_user: str = Header("")):
     run = load()["runs"].get(app_id)
     if not run:
         raise HTTPException(409, "Run the pre-check first")
-    blocking = [f["check"] for f in run["findings"] if f["action"] == "RECTIFY"]
-    if blocking:
-        raise HTTPException(409, f"Fix these before submitting: {', '.join(blocking)}")
-    a.update(status="SUBMITTED", submitted_at=datetime.now().isoformat(timespec="seconds"))
+    if a["status"] == "RECTIFICATION":  # a correction round goes back to the officer even if items remain open
+        a.update(status="SUBMITTED", resubmitted_at=datetime.now().isoformat(timespec="seconds"))
+    else:
+        blocking = [f["check"] for f in run["findings"] if f["action"] == "RECTIFY"]
+        if blocking:
+            raise HTTPException(409, f"Fix these before submitting: {', '.join(blocking)}")
+        a.update(status="SUBMITTED", submitted_at=datetime.now().isoformat(timespec="seconds"))
     (DATA / "apps" / app_id / "application.json").write_text(json.dumps(a, indent=2))
     audit(f"institution:{x_user}", "SUBMITTED", {"app": app_id})
     return a
@@ -322,6 +325,8 @@ def confirm(app_id: str, body: Confirm, x_role: str = Header(""), x_user: str = 
     if body.agree:
         d.update(status="FINAL", confirmed_at=datetime.now().isoformat(timespec="seconds"), checker_note=body.note)
         audit(f"{x_role}:{x_user}", "DECISION_CONFIRMED", {"app": app_id, "outcome": d["outcome"], "note": body.note})
+        if d["outcome"] == "ISSUE_DEFICIENCY":
+            open_rectification(app_id, s["runs"][app_id], d)
     else:
         if not body.note.strip():
             raise HTTPException(422, "Say why you are sending the decision back")
@@ -330,6 +335,33 @@ def confirm(app_id: str, body: Confirm, x_role: str = Header(""), x_user: str = 
         d = {**d, "status": "SENT_BACK", "checker_note": body.note}
     save(s)
     return d
+
+
+def open_rectification(app_id, run, d):
+    """A confirmed deficiency letter reopens the application for exactly the accepted findings that need a fix."""
+    a = application(app_id)
+    rnd = a.get("rectification", {}).get("round", 0) + 1
+    items = [{"finding": f["id"], "check": f["check"], "title": f["title"], "message": f["message"],
+              "doc": f.get("doc") or next((e["doc"] for e in f["evidence"] if e["app"] == app_id and not e["doc"].startswith("photos/")), "")}
+             for f in run["findings"] if f["status"] == "ACCEPTED" and f["action"] in ("RECTIFY", "ADDITIONAL_EVIDENCE")]
+    days = json.loads(checks.RULES_FILE.read_text(encoding="utf-8"))["norms"]["rectification_days"]
+    rect = {"round": rnd, "items": items, "requested_at": datetime.now().isoformat(timespec="seconds"),
+            "due": (date.today() + timedelta(days=days)).isoformat(), "maker": d["maker"], "checker": d["checker"],
+            "snapshot": {"doc_hashes": run["doc_hashes"], "fields": {k: v["fields"] for k, v in run["extraction"].items()}}}
+    storage.write(DATA / "apps" / app_id / "letters" / f"deficiency-round-{rnd}.pdf", records.deficiency_letter(a, rect))
+    a.update(status="RECTIFICATION", rectification=rect)
+    (DATA / "apps" / app_id / "application.json").write_text(json.dumps(a, indent=2))
+    audit("pramaan-records", "DEFICIENCY_LETTER_ISSUED", {"app": app_id, "round": rnd, "items": [i["title"] for i in items]})
+
+
+@app.get("/api/apps/{app_id}/letter")
+def letter(app_id: str, x_role: str = Header(""), x_user: str = Header("")):
+    a = application(app_id)
+    if not visible(a, x_role, x_user) or "rectification" not in a:
+        raise HTTPException(404, "No deficiency letter for this application")
+    rnd = a["rectification"]["round"]
+    return Response(storage.read(DATA / "apps" / app_id / "letters" / f"deficiency-round-{rnd}.pdf"), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{app_id}-deficiency-round-{rnd}.pdf"'})
 
 
 def render_evidence(app, doc, kind, bbox=None, boxes=None):

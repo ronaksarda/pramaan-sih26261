@@ -146,6 +146,26 @@ assert confirm(OFF, {"agree": True}).status_code == 409
 pack = APR.get("/api/apps/APP-2/evidence-pack")
 assert pack.status_code == 200 and pack.content[:2] == b"PK"
 
+# correction loop: a confirmed deficiency letter reopens the application for exactly the listed items
+NAL = as_("1-333333")
+for f in OFF.post("/api/apps/APP-3/run").json()["findings"]:
+    OFF.post(f"/api/apps/APP-3/findings/{f['id']}/review", json={"verdict": "ACCEPTED"})
+APR.post("/api/apps/APP-3/decision", json={"outcome": "ISSUE_DEFICIENCY", "reason": "Missing accounts, unexplained growth", "checker": "officer.k"})
+OFF.post("/api/apps/APP-3/decision/confirm", json={"agree": True})
+a3 = NAL.get("/api/apps/APP-3").json()["application"]
+assert a3["status"] == "RECTIFICATION" and any(i["doc"] == "audited_accounts.pdf" for i in a3["rectification"]["items"])
+assert NAL.get("/api/apps/APP-3/letter").content[:4] == b"%PDF"
+for doc, name in (("audited_accounts.pdf", "nalanda_audited_accounts.pdf"), ("university_noc.pdf", "nalanda_university_noc.pdf")):
+    assert NAL.post("/api/apps/APP-3/documents", data={"doc_type": doc},
+                    files={"file": (name, (gen_data.DATA / "inbox" / name).read_bytes(), "application/pdf")}).status_code == 200
+NAL.post("/api/apps/APP-3/run")
+assert NAL.post("/api/apps/APP-3/submit").json()["status"] == "SUBMITTED"
+corr = OFF.post("/api/apps/APP-3/run").json()
+assert {i["doc"]: i["fixed"] for i in corr["correction"]["items"]}["audited_accounts.pdf"] is True
+assert "CHANGED_OUTSIDE_REQUEST" in {f["check"] for f in corr["findings"]}
+noc = next(d for d in corr["correction"]["changed"] if d["doc"] == "university_noc.pdf")
+assert not noc["asked"] and {"field": "Proposed Intake", "old": "180", "new": "240"} in noc["fields"]
+
 # approval issues a signed record anyone can check; a forged copy is caught
 rec_id = APR.post("/api/apps/APP-1/decision", json={"outcome": "APPROVE"}).json()["record"]
 assert anon.get("/api/public/records", params={"q": "vidya"}).json()[0]["id"] == rec_id

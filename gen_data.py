@@ -315,6 +315,13 @@ def inbox(registry, root):
     (root / "inbox" / "fire_noc_renewed.pdf").write_bytes(pdf_bytes(*docs["fire_noc.pdf"]))
     (root / "inbox" / "audited_accounts.pdf").write_bytes(pdf_bytes(*docs["audited_accounts.pdf"]))
     registry["fire"][dict(docs["fire_noc.pdf"][2])["NOC No"]] = {"institution": m["name"], "valid_upto": d(a["fire_valid"])}
+    # Nalanda's correction round: the missing accounts it was asked for, plus a university NOC it was not asked to change
+    n_spec, n_master = next(a for a in DEMO if a["id"] == "APP-3"), MASTER["1-333333"]
+    n_docs = documents(n_spec, n_master, 3)
+    (root / "inbox" / "nalanda_audited_accounts.pdf").write_bytes(pdf_bytes(*n_docs["audited_accounts.pdf"]))
+    issuer, title, fields = n_docs["university_noc.pdf"]
+    (root / "inbox" / "nalanda_university_noc.pdf").write_bytes(
+        pdf_bytes(issuer, title, [(k, "240" if k == "Proposed Intake" else v) for k, v in fields]))
     # a norms circular the approver imports on the Rules page: UG classroom norm lowered from 66 to 50 m²
     norms = [("Circular No", "AICTE/P&AP/Norms/2026-27/04"), ("Effective From", "01-11-2026")]
     for programme, room in (("UG Engineering", 50), ("Diploma", 66), ("Any other programme", 66)):

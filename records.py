@@ -78,14 +78,54 @@ def issue(app, run, decision, base_url):
            "proof_score": run["proof"]["score"], "independent_pct": run["proof"]["independent_pct"],
            "proof_counts": run["proof"]["counts"], "claims": run["proof"]["claims"],
            "evidence_digest": hashlib.sha256("".join(run["doc_hashes"].values()).encode()).hexdigest()}
-    signer = signers.SimpleSigner.load(str(DATA / "pki" / "aicte.key"), str(DATA / "pki" / "aicte.pem"),
-                                       ca_chain_files=(str(DATA / "pki" / "ca.pem"),), key_passphrase=None)
     url = f"{base_url}check.html?id={rid}"
-    pdf = signers.sign_pdf(IncrementalPdfFileWriter(io.BytesIO(_pdf(rec, url))),
-                           signers.PdfSignatureMetadata(field_name="AICTE"), signer=signer).getvalue()
+    pdf = sign(_pdf(rec, url))
     storage.write(DATA / "records" / f"{rid}.pdf", pdf)
     rec.update(sha256=hashlib.sha256(pdf).hexdigest(), issued_at=datetime.now().isoformat(timespec="seconds"), url=url)
     return rec
+
+
+def sign(data):
+    """Sign a PDF with AICTE's key (test key in the prototype)."""
+    signer = signers.SimpleSigner.load(str(DATA / "pki" / "aicte.key"), str(DATA / "pki" / "aicte.pem"),
+                                       ca_chain_files=(str(DATA / "pki" / "ca.pem"),), key_passphrase=None)
+    return signers.sign_pdf(IncrementalPdfFileWriter(io.BytesIO(data)),
+                            signers.PdfSignatureMetadata(field_name="AICTE"), signer=signer).getvalue()
+
+
+def deficiency_letter(app, rect):
+    """A signed deficiency letter that lists exactly what the college must fix, so the re-check can hold it to that list."""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+    c.setFont("Helvetica-Bold", 15)
+    c.drawCentredString(w / 2, h - 70, "All India Council for Technical Education")
+    c.setFont("Helvetica-Bold", 13)
+    c.drawCentredString(w / 2, h - 95, f"DEFICIENCY LETTER - CORRECTION ROUND {rect['round']}")
+    c.line(60, h - 108, w - 60, h - 108)
+    c.setFont("Helvetica", 11)
+    y = h - 140
+    for line in (f"To: {app['institution']} (AICTE {app['aicte_id']})", f"Application: {app['id']}",
+                 f"Issued: {rect['requested_at'][:10]}    Reply by: {rect['due']}",
+                 f"Decided by: {rect['maker']}, confirmed by {rect['checker']}", "",
+                 "Please correct only the items below and resubmit. Changes to anything else will be flagged."):
+        c.drawString(70, y, line)
+        y -= 18
+    y -= 6
+    for i, it in enumerate(rect["items"], 1):
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(70, y, f"{i}. {it['title']}" + (f"  ({it['doc']})" if it["doc"] else ""))
+        y -= 16
+        c.setFont("Helvetica", 10)
+        text = it["message"]
+        while text:
+            c.drawString(86, y, text[:95])
+            text, y = text[95:], y - 14
+        y -= 6
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(60, 40, "SYNTHETIC DOCUMENT - generated for SIH 2026 prototype demo")
+    c.save()
+    return sign(buf.getvalue())
 
 
 def pdf(rid):
