@@ -253,6 +253,31 @@ def analyse_photo(data, label):
     return cache[key]
 
 
+_peers = {}  # (path, mtime) -> (sha256, land survey no); files rarely change, so the national index stays cheap
+
+
+def peer_files(app_id):
+    """Every other application's document hashes and land survey numbers: what only the regulator can compare."""
+    out = []
+    for app_file in sorted((DATA / "apps").glob("*/application.json")):
+        other = json.loads(app_file.read_text())
+        if other["id"] == app_id:
+            continue
+        for pdf in app_file.parent.glob("*.pdf"):
+            key = (str(pdf), pdf.stat().st_mtime_ns)
+            if key not in _peers:
+                data = storage.read(pdf)
+                survey = None
+                if pdf.name == "occupancy_certificate.pdf":
+                    m = re.search(r"Land Survey No:\s*(\S+)", pymupdf.open(stream=data)[0].get_text())
+                    survey = m and m.group(1)
+                _peers[key] = (hashlib.sha256(data).hexdigest(), survey)
+            sha, survey = _peers[key]
+            out.append({"app": other["id"], "aicte_id": other["aicte_id"], "institution": other["institution"],
+                        "doc": pdf.name, "sha": sha, "survey": survey})
+    return out
+
+
 def earlier_photo_hashes(submitted_at):
     """Photos from applications submitted before this one: the later copy is the one flagged."""
     out = []
@@ -372,7 +397,8 @@ def run(app_id):
             if mine - h <= norms["phash_max_distance"]:
                 flag("DUPLICATE_PHOTO", f"This '{p['label']}' photo is the same picture as {other_app}/{other_file}, "
                      "submitted earlier by another college (resized or re-saved copy)",
-                     [{"kind": "img", "app": app_id, "doc": p["file"]}, {"kind": "img", "app": other_app, "doc": other_file}])
+                     [{"kind": "img", "app": app_id, "doc": p["file"]}, {"kind": "img", "app": other_app, "doc": other_file}],
+                     links=[{"app": other_app, "kind": "photo"}])
 
         # 5. infrastructure evidence
         loc, taken = photo_meta(img)
@@ -409,7 +435,9 @@ def run(app_id):
         where = sorted({o["institution"] for _, others in ghosts for o in others})
         flag("GHOST_FACULTY", f"{len(ghosts)} of {len(roster)} declared faculty are also on the 2026-27 faculty list of "
              f"{', '.join(where)} (PAN match): {', '.join(f['name'] + ' (' + f['pan_masked'] + ')' for f, _ in ghosts[:4])}"
-             f"{' and more' if len(ghosts) > 4 else ''}. Effective faculty strength: {len(roster) - len(ghosts)}.", linked=where)
+             f"{' and more' if len(ghosts) > 4 else ''}. Effective faculty strength: {len(roster) - len(ghosts)}.",
+             links=[{"institution": w, "kind": "faculty", "count": sum(w in {o["institution"] for o in others} for _, others in ghosts)}
+                    for w in where])
     students = app["proposed_intake"] * norms["programme_years"]
     ratio = students / app["faculty_count"]
     if ratio > table["faculty_ratio_max"]:
@@ -435,6 +463,24 @@ def run(app_id):
     for past in master.get("past_deficiencies", []):
         if any(f["check"] == past for f in findings):
             flag("REPEAT_DEFICIENCY", f"{past.replace('_', ' ').title()} was also recorded in the previous approval cycle")
+
+    # cross-college: the same file or the same land in another college's application
+    peers = peer_files(app_id)
+    for doc, blob in blobs.items():
+        sha = hashlib.sha256(blob).hexdigest()
+        for o in peers:
+            if o["sha"] == sha and o["aicte_id"] != app["aicte_id"]:
+                flag("IDENTICAL_FILE", f"{doc} is byte-for-byte the same file that {o['institution']} ({o['app']}) submitted as "
+                     f"{o['doc']}. One certificate cannot belong to two colleges.",
+                     [{"kind": "pdf", "app": app_id, "doc": doc, "bbox": None}, {"kind": "pdf", "app": o["app"], "doc": o["doc"], "bbox": None}],
+                     links=[{"app": o["app"], "kind": "file"}])
+    survey = docs.get("occupancy_certificate.pdf", {}).get("Land Survey No")
+    for o in peers:
+        if survey and o["survey"] == survey and o["aicte_id"] != app["aicte_id"]:
+            flag("LAND_REUSED", f"Land survey no. {survey} on this occupancy certificate is also shown by {o['institution']} "
+                 f"({o['app']}). The same land cannot meet two colleges' land requirement.",
+                 [ev("occupancy_certificate.pdf", "Land Survey No"), {"kind": "pdf", "app": o["app"], "doc": o["doc"], "bbox": None}],
+                 links=[{"app": o["app"], "kind": "land"}])
 
     # 6. issuing-authority verification
     def source(doc, name, registry, key_field, compare):

@@ -113,6 +113,19 @@ assert INST.post("/api/assist", json={"question": "Why?", "app_id": "APP-2"}).st
 assert OFF.post("/api/assist", json={"question": "What needs attention?"}).status_code == 200 and "queue" in seen["ctx"]
 assert OFF.post("/api/assist", json={"question": " "}).status_code == 422
 
+# national queue: run everything, then cross-college patterns surface
+assert APR.post("/api/run-all").json()["checked"] >= 50
+rs = {a["id"]: a for a in OFF.get("/api/apps").json()}
+assert rs["APP-25"]["outcome"] == "RECOMMEND_INSPECTION"  # college 20 submitted college 19's fire NOC file
+f25 = OFF.get("/api/apps/APP-25").json()["run"]["findings"]
+assert any(f["check"] == "IDENTICAL_FILE" and "APP-24" in f["message"] for f in f25)
+assert any(f["check"] == "LAND_REUSED" for f in OFF.get("/api/apps/APP-32").json()["run"]["findings"])
+net = OFF.get("/api/network").json()
+assert {"faculty", "file", "land", "photo"} <= {e["kind"] for e in net["edges"]}
+queue_names = {n["name"] for n in net["nodes"] if n["app"]}
+assert sum(e["kind"] == "faculty" and {e["a"], e["b"]} <= queue_names for e in net["edges"]) >= 4  # a 3-college ring + a pair
+assert INST.get("/api/network").status_code == 403
+
 # alerts are routed by role
 assert {a["type"] for a in APR.get("/api/alerts").json()} == {"INSPECTION_RECOMMENDED"}
 assert "SCAN_TAMPER" in {a["type"] for a in OFF.get("/api/alerts").json()}

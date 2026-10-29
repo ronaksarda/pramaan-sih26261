@@ -41,7 +41,7 @@
 <!-- signed-in app -->
 <header class="menubar app">
   <div class="mb-left"><span class="word" title="प्रमाण, Hindi for proof"><span class="en">pramaan</span><span class="hi-alt" lang="hi">प्रमाण</span></span>
-    <nav aria-label="Sections"><button data-t="queue" class="on">applications</button><button data-t="alerts">alerts <span class="count" id="alertCount"></span></button><button data-t="rules">rules</button><button data-t="inspect" id="inspectTab">inspection plan</button><button data-t="audit" id="auditTab">audit trail</button><a href="/check.html">public check</a></nav></div>
+    <nav aria-label="Sections"><button data-t="queue" class="on">applications</button><button data-t="alerts">alerts <span class="count" id="alertCount"></span></button><button data-t="rules">rules</button><button data-t="network" id="networkTab">network</button><button data-t="inspect" id="inspectTab">inspection plan</button><button data-t="audit" id="auditTab">audit trail</button><a href="/check.html">public check</a></nav></div>
   <svg class="mb-mark" aria-hidden="true"><use href="#mark"/></svg>
   <div class="mb-right">
     <label class="switch" id="fireWrap" title="Simulate the state fire registry going offline"><input type="checkbox" id="fire" role="switch"> fire registry offline</label>
@@ -57,6 +57,7 @@
       <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title" id="listTitle">applications</span></div>
       <div id="list"></div>
       <p class="foot" id="listFoot"></p>
+      <div class="row-actions" style="margin:0 16px 12px"><button class="plain sm" id="runAll" onclick="runAll()">check all submitted</button><span class="m" id="runAllMsg"></span></div>
     </div>
     <div class="window case-win">
       <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title" id="caseTitle">case file</span></div>
@@ -84,11 +85,18 @@
       <h4>Checklists by application category</h4>
       <div class="group" id="checklists"></div>
     </div></div></section>
+  <section id="network" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">network</span></div>
+    <div class="pad">
+      <h4 style="margin-top:4px">Colleges that share faculty, photos, files or land</h4>
+      <p class="foot" style="margin:-2px 2px 12px">One application cannot show these. Pramaan joins every college's evidence, so a teacher on three payrolls,
+        one fire NOC used twice, or one plot of land shown by two colleges becomes visible. Click a college to open its case.</p>
+      <div id="netBody"></div>
+    </div></div></section>
   <section id="inspect" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">inspection plan</span></div>
     <div class="pad">
       <h4 style="margin-top:4px">Which colleges should an expert team visit first?</h4>
       <p class="foot" style="margin:-2px 2px 12px">Self-disclosure approvals are checked only after approval (APH 2.5(c)), and inspection teams are few.
-        Pramaan ranks colleges by how little of their claim is proven, and puts colleges that share faculty or photos into the same visit.</p>
+        Pramaan ranks colleges by how little of their claim is proven, and puts colleges that share faculty, photos, files or land into the same visit.</p>
       <div class="row-actions" style="margin-top:0"><label for="budget" class="s">Inspection visits available</label>
         <input id="budget" type="number" min="1" max="50" value="3" style="width:70px;height:32px;border:1px solid #bdbdbd;border-radius:6px;padding:0 8px">
         <button class="aqua" onclick="loadPlan()">plan visits</button></div>
@@ -156,7 +164,8 @@ async function boot() {
   if (!ME) { $('#lu').focus(); return; }
   $('#who').textContent = `${ME.name.split(',')[0]} · ${ROLE_NAME[ME.role]}`;
   $('#fireWrap').hidden = !officer();
-  $('#auditTab').hidden = $('#inspectTab').hidden = !(officer() || role() === 'auditor');
+  $('#auditTab').hidden = $('#inspectTab').hidden = $('#networkTab').hidden = !(officer() || role() === 'auditor');
+  $('#runAll').hidden = !officer();
   if (officer()) api('/api/sources').then(s => $('#fire').checked = s.down.includes('fire'));
   loadList();
 }
@@ -459,9 +468,9 @@ async function loadPlan() {
   const row = (r, i) => `<div class="row" ${i === undefined ? '' : 'style="align-items:flex-start"'}>
       ${i === undefined ? '' : `<div class="score" style="min-width:44px"><b style="font-size:28px">${i + 1}</b><span>visit</span></div>`}
       <div class="main"><div class="t">${esc(r.institution)} <span class="m">· ${r.app} · ${esc(r.state)}</span></div>
-        <div class="s">Proof score ${r.proof} · ${r.contradicted} claims contradicted · ${r.high} serious findings</div>
+        <div class="s">Proof score ${r.proof} · ${r.contradicted} contradicted ${r.contradicted === 1 ? 'claim' : 'claims'} · ${r.high} serious ${r.high === 1 ? 'finding' : 'findings'}</div>
         ${r.reasons.length ? `<div class="m">Why: ${r.reasons.map(esc).join(' · ')}</div>` : ''}
-        ${r.inspect_with.length ? `<div class="m"><b>Inspect together with:</b> ${r.inspect_with.map(esc).join(', ')} (shared faculty or photos)</div>` : ''}</div>
+        ${r.inspect_with.length ? `<div class="m"><b>Inspect together with:</b> ${r.inspect_with.map(esc).join(', ')} (shared faculty, photos, files or land)</div>` : ''}</div>
       <div class="risk">${r.priority}<small>priority</small></div></div>`;
   $('#planBody').innerHTML = `
     <div class="group">${p.plan.map(row).join('') || '<div class="row"><div class="main"><div class="t">Nothing to inspect</div><div class="s">No submitted application has serious findings.</div></div></div>'}</div>
@@ -510,6 +519,39 @@ async function sendAsk(q) {
 }
 $('#askForm').onsubmit = e => { e.preventDefault(); sendAsk($('#askInput').value); };
 
+async function runAll() {
+  $('#runAll').disabled = true; $('#runAllMsg').textContent = 'checking every submitted application…';
+  try { const r = await api('/api/run-all', {method: 'POST'}); $('#runAllMsg').textContent = `${r.checked} applications checked in ${r.seconds} s`; loadList(); }
+  catch (e) { $('#runAllMsg').textContent = e.message; }
+  $('#runAll').disabled = false;
+}
+
+const KIND = {faculty: ['shared faculty', '#d70015'], photo: ['reused photo', '#b25000'], file: ['identical file', '#6b2bd6'], land: ['same land', '#0a7d6e']};
+async function loadNetwork() {
+  const {nodes, edges} = await api('/api/network');
+  if (!nodes.length) { $('#netBody').innerHTML = '<div class="empty"><b>No links yet</b>Run checks on the queue ("check all submitted") to find shared evidence.</div>'; return; }
+  // connected groups, each drawn as its own small ring so clusters read at a glance
+  const idx = Object.fromEntries(nodes.map((n, i) => [n.name, i])), parent = nodes.map((_, i) => i);
+  const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  edges.forEach(e => parent[find(idx[e.a])] = find(idx[e.b]));
+  const groups = Object.values(nodes.reduce((g, n, i) => ((g[find(i)] ||= []).push(n), g), {})).sort((x, y) => y.length - x.length);
+  const W = 1000, cols = 3, cell = W / cols, R = 92, H = Math.ceil(groups.length / cols) * cell * 0.82;
+  groups.forEach((g, gi) => {
+    const cx = (gi % cols) * cell + cell / 2, cy = Math.floor(gi / cols) * cell * 0.82 + cell * 0.41;
+    g.forEach((n, k) => { const t = 2 * Math.PI * k / g.length - Math.PI / 2; n.x = cx + (g.length > 1 ? R * Math.cos(t) : 0); n.y = cy + (g.length > 1 ? R * Math.sin(t) : 0); n.up = Math.sin(t) < -0.1; });
+  });
+  const by = Object.fromEntries(nodes.map(n => [n.name, n]));
+  const short = s => s.length > 26 ? s.slice(0, 24) + '…' : s;
+  $('#netBody').innerHTML = `<div class="legend" style="margin:0 2px 10px">${Object.values(KIND).map(([l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}
+      <span><i style="background:#fff;border:1.5px dashed #888"></i>outside this queue</span></div>
+    <svg viewBox="0 0 ${W} ${H}" class="net" role="img" aria-label="Network of colleges sharing evidence">
+      ${edges.map(e => `<line x1="${by[e.a].x}" y1="${by[e.a].y}" x2="${by[e.b].x}" y2="${by[e.b].y}" stroke="${KIND[e.kind][1]}" stroke-width="${1.5 + Math.min(e.count, 5)}"><title>${esc(e.a)} – ${esc(e.b)}: ${KIND[e.kind][0]}${e.count > 1 ? ` (${e.count})` : ''}</title></line>`).join('')}
+      ${nodes.map(n => `<g class="${n.app ? 'node' : 'node ext'}" ${n.app ? `onclick="goTo('${n.app}')"` : ''}><circle cx="${n.x}" cy="${n.y}" r="${n.app ? 9 + (n.risk || 0) / 14 : 8}"/>
+        <text x="${n.x}" y="${n.up ? n.y - 16 - (n.risk || 0) / 14 : n.y + (n.app ? 26 : 22) + (n.risk || 0) / 14}" text-anchor="middle">${esc(short(n.name))}</text><title>${esc(n.name)}${n.app ? ` · ${n.app} · risk ${n.risk ?? '–'}` : ' · not applying this cycle'}</title></g>`).join('')}
+    </svg>
+    <p class="foot">${groups.length} linked groups · ${nodes.length} colleges · ${edges.length} links. Circle size grows with the case's risk score.</p>`;
+}
+
 async function loadAudit() {
   const {chain, entries} = await api('/api/audit');
   $('#auditBody').innerHTML = `
@@ -525,7 +567,8 @@ async function loadAudit() {
 
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
-  ['queue', 'alerts', 'rules', 'inspect', 'audit'].forEach(t => $('#' + t).hidden = t !== b.dataset.t);
+  ['queue', 'alerts', 'rules', 'network', 'inspect', 'audit'].forEach(t => $('#' + t).hidden = t !== b.dataset.t);
+  if (b.dataset.t === 'network') loadNetwork();
   if (b.dataset.t === 'inspect') loadPlan();
   if (b.dataset.t === 'alerts') loadAlerts();
   if (b.dataset.t === 'rules') loadRules();

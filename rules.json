@@ -43,7 +43,8 @@
       "Certificate No",
       "Institution Name",
       "Issue Date",
-      "DigiLocker URI"
+      "DigiLocker URI",
+      "Land Survey No"
     ],
     "fee_receipt.pdf": [
       "Transaction ID",
@@ -241,6 +242,18 @@
       "action": "ADDITIONAL_EVIDENCE",
       "clause": "Correction scope (deficiency letter)",
       "title": "Changed something that was not asked for"
+    },
+    "IDENTICAL_FILE": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "Integrity: reused evidence",
+      "title": "Same file submitted by another college"
+    },
+    "LAND_REUSED": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "APH Annexure 2 §2.1(iii) (land and building)",
+      "title": "Same land shown by another college"
     }
   },
   "proof_levels": {

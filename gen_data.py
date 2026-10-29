@@ -246,7 +246,8 @@ def documents(a, m, n):
             ("Amount", "Rs. 1,00,000"), ("Payment Date", d(APP_DATE - timedelta(days=12)))]),
         "occupancy_certificate.pdf": (f"Municipal Corporation, {m['state']}", "OCCUPANCY CERTIFICATE", [
             ("Certificate No", oc_no), ("Institution Name", m["name"]), ("Issue Date", d(date(2014, 3, 11))),
-            ("Built-up Area (sq m)", "18450"), ("DigiLocker URI", f"in.gov.{m['state'][:2].lower()}.ulb-OCCER-{n}0771")]),
+            ("Built-up Area (sq m)", "18450"), ("DigiLocker URI", f"in.gov.{m['state'][:2].lower()}.ulb-OCCER-{n}0771"),
+            ("Land Survey No", a.get("survey") or f"SY-{m['state'][:3].upper()}-{n:04d}"), ("Land Area (acres)", a.get("acres", "12.40"))]),
         "fire_noc.pdf": (f"State Fire & Emergency Services, {m['state']}", "FIRE SAFETY CERTIFICATE / NOC", [
             ("NOC No", f"FIRE/{m['state'][:3].upper()}/2025/{n}390"), ("Institution Name", a.get("fire_name") or m["name"]),
             ("Issue Date", d(fire_valid - timedelta(days=365))), ("Valid Upto", d(fire_valid))]),
@@ -269,7 +270,9 @@ def build_app(a, master, signer, registry, root):
     for fname, (issuer, title, fields) in docs.items():
         if fname in a.get("missing", []) or (fname == "university_noc.pdf" and a["category"] != "INCREASE_INTAKE"):
             continue
-        if fname == "fire_noc.pdf" and a.get("scan_fire"):
+        if fname == "fire_noc.pdf" and a.get("fire_copy_of") in FILES:  # the same file another college submitted
+            data = FILES[a["fire_copy_of"]]
+        elif fname == "fire_noc.pdf" and a.get("scan_fire"):
             data = scanned(issuer, title, fields, a.get("tamper_fire"), seed=n)
         else:
             data = pdf_bytes(issuer, title, fields)
@@ -379,6 +382,60 @@ def write_users(root):
     (root / "users.json").write_text(json.dumps(out, indent=2))
 
 
+FILES = {}  # n -> fire NOC bytes, so a later national application can reuse an earlier one's file
+STATES = {"Maharashtra": (18.52, 73.86), "Telangana": (17.39, 78.49), "Karnataka": (12.97, 77.59), "Tamil Nadu": (13.08, 80.27),
+          "Uttar Pradesh": (26.85, 80.95), "Rajasthan": (26.91, 75.79), "Gujarat": (23.02, 72.57), "Kerala": (10.85, 76.27)}
+PLACES = ["Godavari", "Narmada", "Sahyadri", "Aravalli", "Tapti", "Mahanadi", "Satpura", "Vindhya", "Krishna", "Tungabhadra",
+          "Pennar", "Kaveri Valley", "Nilgiri", "Konkan", "Malwa", "Deccan"]
+KINDS = ["Institute of Technology", "College of Engineering", "Institute of Engineering", "Engineering College"]
+
+
+def national(registry, signer, root, count=48):
+    """More synthetic colleges so the queue, the inspection planner and the network look like a regional office's year.
+    Planted patterns: ghost-faculty rings, a shared fire-NOC file, land shown by two colleges, expired NOCs, shortfalls."""
+    rnd = random.Random(2026)
+    specs = []
+    for i in range(count):
+        n = 100 + i
+        aid = f"1-{700000 + i:06d}"
+        state = rnd.choice(sorted(STATES))
+        lat, lng = STATES[state]
+        name = f"{PLACES[i % len(PLACES)]} {KINDS[(i // len(PLACES) + i) % len(KINDS)]}, {state}"
+        intake = rnd.choice([60, 120, 180])
+        MASTER[aid] = {"name": name, "signatory": f"{rnd.choice(FIRST)} {rnd.choice(LAST)}",
+                       "lat": round(lat + rnd.uniform(-0.3, 0.3), 4), "lng": round(lng + rnd.uniform(-0.3, 0.3), 4),
+                       "state": state, "approved_intake": intake, "past_deficiencies": [],
+                       "last_approval": {"cycle": "2025-26", "intake": intake, "faculty": intake * 4 // 18, "classrooms": 3,
+                                         "built_up_sqm": 18450}}
+        a = dict(id=f"APP-{5 + i}", n=n, aicte_id=aid, category="EOA_SELF_DISCLOSURE", proposed_intake=intake,
+                 faculty=intake * 4 // 18, classrooms=[66, 70, 66], building_age=rnd.randint(4, 25),
+                 fire_valid=date(2027, rnd.randint(1, 12), 15), submitted_at=f"2026-10-{1 + i % 15:02d}T{9 + i % 8}:00:00", photos=[])
+        roll = rnd.random()
+        if i in (3, 4, 5):  # a ring: three colleges list the same 3 teachers
+            a.update(ghost_of=900, ghosts=3)
+        elif i in (11, 12):
+            a.update(ghost_of=901, ghosts=5)
+        elif i == 20:
+            a.update(fire_copy_of=119)  # the fire NOC file of college 19, byte for byte
+        elif i in (27, 28):
+            a.update(survey="SY-TEL-0771", acres="10.29")  # the JNTU-H pattern: the same land shown twice
+        elif roll < 0.12:
+            a.update(fire_valid=date(2026, 8, 31))
+        elif roll < 0.22:
+            a.update(classrooms=[66, 48, 66])
+        elif roll < 0.3:
+            a.update(faculty=intake * 4 // 28)
+        elif roll < 0.36:
+            a.update(proposed_intake=intake * 2)
+        elif roll < 0.42:
+            a.update(missing=["audited_accounts.pdf"])
+        specs.append(a)
+    for a in specs:  # ghost faculty must be registered for every college before any is checked; files need their source first
+        build_app(a, MASTER, signer, registry, root)
+        FILES[a["n"]] = storage.read(root / "apps" / a["id"] / "fire_noc.pdf")
+    return len(specs)
+
+
 def build():
     if DATA.exists():
         shutil.rmtree(DATA)
@@ -388,11 +445,12 @@ def build():
     register_faculty(registry, DATA, "1-555555", "Ganga Institute of Technology, Patna", roster(5, 40))
     for a in DEMO:
         build_app(a, MASTER, signer, registry, DATA)
+    extra = national(registry, signer, DATA)
     inbox(registry, DATA)
     (DATA / "master.json").write_text(json.dumps(MASTER, indent=2))
     (DATA / "registry.json").write_text(json.dumps(registry, indent=2))
     write_users(DATA)
-    print("Generated", len(DEMO), "applications in", DATA)
+    print("Generated", len(DEMO) + extra, "applications in", DATA)
 
 
 if __name__ == "__main__":

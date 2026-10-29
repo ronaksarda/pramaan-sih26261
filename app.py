@@ -466,6 +466,46 @@ def assist(body: Ask, x_role: str = Header(""), x_user: str = Header("")):
     return {"answer": answer}
 
 
+@app.post("/api/run-all")
+def run_all(x_role: str = Header(""), x_user: str = Header("")):
+    """Check every submitted application, as a regional office would at the start of a cycle."""
+    if x_role not in OFFICERS:
+        raise HTTPException(403, "Officers only")
+    t0 = datetime.now()
+    s = load()
+    ids = [p.parent.name for p in sorted((DATA / "apps").glob("*/application.json"))
+           if json.loads(p.read_text())["status"] == "SUBMITTED"]
+    for app_id in ids:
+        s["runs"][app_id] = checks.run(app_id)
+        s["decisions"].pop(app_id, None)
+    save(s)
+    audit(f"{x_role}:{x_user}", "RUN_ALL", {"applications": len(ids)})
+    return {"checked": len(ids), "seconds": round((datetime.now() - t0).total_seconds(), 1)}
+
+
+@app.get("/api/network")
+def network(x_role: str = Header("")):
+    """Colleges joined by shared faculty, photos, files or land: patterns no single application shows."""
+    if x_role not in OFFICERS | {"auditor"}:
+        raise HTTPException(403, "Officers and auditors only")
+    s = load()
+    nodes, edges = {}, {}
+    in_queue = {application(i)["institution"]: i for i in s["runs"]}
+    for app_id, run in s["runs"].items():
+        a = application(app_id)
+        for f in run["findings"]:
+            for lk in f.get("links", []):
+                other = lk.get("institution") or application(lk["app"])["institution"]
+                for name in (a["institution"], other):
+                    nodes[name] = {"name": name, "app": in_queue.get(name), "risk": None}
+                key = (*sorted((a["institution"], other)), lk["kind"])
+                edges[key] = max(edges.get(key, 0), lk.get("count", 1))
+    for n in nodes.values():
+        if n["app"]:
+            n["risk"] = s["runs"][n["app"]]["risk_score"]
+    return {"nodes": list(nodes.values()), "edges": [{"a": a, "b": b, "kind": k, "count": c} for (a, b, k), c in edges.items()]}
+
+
 @app.get("/api/inspection-plan")
 def inspection_plan(budget: int = 3, x_role: str = Header("")):
     """Self-disclosure approvals are checked only afterwards (APH 2.5(c)) and inspection teams are few.
@@ -480,8 +520,7 @@ def inspection_plan(budget: int = 3, x_role: str = Header("")):
         if a["status"] != "SUBMITTED":
             continue
         high = [f for f in run["findings"] if f["severity"] == "HIGH"]
-        linked = {application(e["app"])["institution"] for f in run["findings"] for e in f["evidence"] if e["app"] != app_id}
-        linked |= {name for f in run["findings"] for name in f.get("linked", [])}
+        linked = {lk.get("institution") or application(lk["app"])["institution"] for f in run["findings"] for lk in f.get("links", [])}
         rows.append({"app": app_id, "institution": a["institution"], "state": master[a["aicte_id"]]["state"],
                      "proof": run["proof"]["score"], "contradicted": run["proof"]["counts"]["CONTRADICTED"], "high": len(high),
                      "priority": 10 * run["proof"]["counts"]["CONTRADICTED"] + 5 * len(high) + (100 - run["proof"]["score"]) // 2,

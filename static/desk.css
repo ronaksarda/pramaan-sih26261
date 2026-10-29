@@ -226,3 +226,11 @@ dialog img{max-width:100%;border-radius:6px;display:block;margin:6px 0 14px;bord
 .ask-form input{flex:1;min-width:0;height:34px;border:1px solid #9a9a9a;border-radius:6px;padding:0 10px;box-shadow:inset 0 1px 2px rgba(0,0,0,.16)}
 .ask-note{font-size:11.5px;color:var(--ink3);margin:0;padding:0 14px 10px}
 .row.flash{background:#fff6d6;transition:background .3s}
+
+/* network view */
+.net{width:100%;height:auto;background:#fbfbfb;border:1px solid var(--hair);border-radius:8px}
+.net line{opacity:.75}
+.net .node circle{fill:#fff;stroke:#1f1f1f;stroke-width:1.6;cursor:pointer}
+.net .node:hover circle{fill:#e5f0ff}
+.net .node.ext circle{stroke:#888;stroke-dasharray:3 2;cursor:default}
+.net text{font:11.5px Inter,sans-serif;fill:#333;pointer-events:none}
