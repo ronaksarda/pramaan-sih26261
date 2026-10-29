@@ -56,15 +56,26 @@ class Login(BaseModel):
     password: str
 
 
+FAILED = {}  # client address -> recent failed sign-in times
+# shortcut: per-process memory, fine for one server; use a shared store (Redis) behind a load balancer
+
+
 @app.post("/api/login")
-def login(body: Login):
+def login(body: Login, request: Request):
+    ip, now = request.client.host if request.client else "?", datetime.now().timestamp()
+    FAILED[ip] = [t for t in FAILED.get(ip, []) if now - t < 600]
+    if len(FAILED[ip]) >= 5:
+        raise HTTPException(429, "Too many failed sign-ins. Wait 10 minutes and try again.")
     user = auth.check(body.username.strip(), body.password)
     if not user:
+        FAILED[ip].append(now)
         audit("anonymous", "LOGIN_FAILED", {})
         raise HTTPException(401, "Wrong username or password")
+    FAILED.pop(ip, None)
     audit(f"{user['role']}:{user['username']}", "LOGIN", {})
     r = JSONResponse(user)
-    r.set_cookie(auth.COOKIE, auth.issue(user), max_age=auth.TTL, httponly=True, samesite="strict")
+    r.set_cookie(auth.COOKIE, auth.issue(user), max_age=auth.TTL, httponly=True, samesite="strict",
+                 secure=os.environ.get("PRAMAAN_HTTPS") == "1")  # set PRAMAAN_HTTPS=1 when served over HTTPS
     return r
 
 

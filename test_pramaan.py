@@ -27,6 +27,9 @@ rules_backup = pramaan.checks.RULES_FILE.read_text(encoding="utf-8")
 # sign-in: no session, wrong password, forged headers and forged cookies all get nothing
 assert anon.get("/api/apps").status_code == 401
 assert anon.post("/api/login", json={"username": "officer.k", "password": "wrong"}).status_code == 401
+brute = TestClient(pramaan.app)
+assert [brute.post("/api/login", json={"username": "x", "password": "y"}).status_code for _ in range(6)][-1] == 429
+pramaan.FAILED.clear()
 assert anon.get("/api/apps", headers={"X-Role": "approver", "X-User": "approver.r"}).status_code == 401
 assert TestClient(pramaan.app, cookies={"pramaan_session": "eyJ1IjoiYXBwcm92ZXIuciJ9.deadbeef"}).get("/api/apps").status_code == 401
 assert OFF.get("/api/me").json()["role"] == "scrutiny_officer"
