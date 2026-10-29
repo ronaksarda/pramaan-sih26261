@@ -41,7 +41,7 @@
 <!-- signed-in app -->
 <header class="menubar app">
   <div class="mb-left"><span class="word" title="प्रमाण, Hindi for proof"><span class="en">pramaan</span><span class="hi-alt" lang="hi">प्रमाण</span></span>
-    <nav aria-label="Sections"><button data-t="queue" class="on">applications</button><button data-t="alerts">alerts <span class="count" id="alertCount"></span></button><button data-t="rules">rules</button><button data-t="network" id="networkTab">network</button><button data-t="inspect" id="inspectTab">inspection plan</button><button data-t="audit" id="auditTab">audit trail</button><a href="/check.html">public check</a></nav></div>
+    <nav aria-label="Sections"><button data-t="queue" class="on">applications</button><button data-t="alerts">alerts <span class="count" id="alertCount"></span></button><button data-t="rules">rules</button><button data-t="network" id="networkTab">network</button><button data-t="inspect" id="inspectTab">inspection plan</button><button data-t="issuer" id="issuerTab">issuer simulator</button><button data-t="audit" id="auditTab">audit trail</button><a href="/check.html">public check</a></nav></div>
   <svg class="mb-mark" aria-hidden="true"><use href="#mark"/></svg>
   <div class="mb-right">
     <label class="switch" id="fireWrap" title="Simulate the state fire registry going offline"><input type="checkbox" id="fire" role="switch"> fire registry offline</label>
@@ -101,6 +101,13 @@
         <input id="budget" type="number" min="1" max="50" value="3" style="width:70px;height:32px;border:1px solid #bdbdbd;border-radius:6px;padding:0 8px">
         <button class="aqua" onclick="loadPlan()">plan visits</button></div>
       <div id="planBody"></div>
+    </div></div></section>
+  <section id="issuer" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">issuer simulator · state fire department</span></div>
+    <div class="pad">
+      <h4 style="margin-top:4px">What happens if a certificate is revoked after approval?</h4>
+      <p class="foot" style="margin:-2px 2px 12px">This page stands in for the fire department's own system. Revoke a NOC and Pramaan re-checks every approved college
+        with its issuers, alerts the approver, and marks the public approval record as under review.</p>
+      <div id="issuerMsg"></div><div class="group" id="issuerBody"></div>
     </div></div></section>
   <section id="audit" hidden><div class="window narrow"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">audit trail</span></div>
     <div class="pad" id="auditBody"></div></div></section>
@@ -165,7 +172,7 @@ async function boot() {
   $('#who').textContent = `${ME.name.split(',')[0]} · ${ROLE_NAME[ME.role]}`;
   $('#fireWrap').hidden = !officer();
   $('#auditTab').hidden = $('#inspectTab').hidden = $('#networkTab').hidden = !(officer() || role() === 'auditor');
-  $('#runAll').hidden = !officer();
+  $('#runAll').hidden = $('#issuerTab').hidden = !officer();
   if (officer()) api('/api/sources').then(s => $('#fire').checked = s.down.includes('fire'));
   loadList();
 }
@@ -482,6 +489,7 @@ async function loadPlan() {
       <div class="main"><div class="t">${esc(r.institution)} <span class="m">· ${r.app} · ${esc(r.state)}</span></div>
         <div class="s">Proof score ${r.proof} · ${r.contradicted} contradicted ${r.contradicted === 1 ? 'claim' : 'claims'} · ${r.high} serious ${r.high === 1 ? 'finding' : 'findings'}</div>
         ${r.reasons.length ? `<div class="m">Why: ${r.reasons.map(esc).join(' · ')}</div>` : ''}
+        ${i === undefined ? '' : `<div style="margin-top:6px"><a class="plain sm" href="/api/inspection-brief?app=${r.app}">download inspection brief</a></div>`}
         ${r.inspect_with.length ? `<div class="m"><b>Inspect together with:</b> ${r.inspect_with.map(esc).join(', ')} (shared faculty, photos, files or land)</div>` : ''}</div>
       <div class="risk">${r.priority}<small>priority</small></div></div>`;
   $('#planBody').innerHTML = `
@@ -564,6 +572,20 @@ async function loadNetwork() {
     <p class="foot">${groups.length} linked groups · ${nodes.length} colleges · ${edges.length} links. Circle size grows with the case's risk score.</p>`;
 }
 
+async function loadIssuer() {
+  const rows = await api('/api/issuer/fire');
+  rows.sort((x, y) => (y.app ? 1 : 0) - (x.app ? 1 : 0));
+  $('#issuerBody').innerHTML = rows.slice(0, 30).map(r => `<div class="row"><div class="main"><div class="t">${esc(r.noc)} <span class="m">· ${esc(r.institution)}</span></div>
+      <div class="s">Valid until ${esc(r.valid_upto)}${r.app ? ` · college approved (${r.app})` : ''}</div></div>
+      ${r.revoked ? chip('MISMATCH').replace('Mismatch', 'Revoked ' + esc(r.revoked)) : `<button class="plain sm red" onclick="revokeNoc('${esc(r.noc)}')">revoke</button>`}</div>`).join('');
+}
+async function revokeNoc(noc) {
+  const r = await api('/api/issuer/fire/revoke', {method: 'POST', body: JSON.stringify({noc})});
+  $('#issuerMsg').innerHTML = r.watch.length ? `<p class="msg err">Watch: ${r.watch.map(e => `${esc(e.app)} (${esc(e.record)}): ${esc(e.note)}`).join('; ')}. The approver has been alerted and the public record shows it.</p>`
+    : '<p class="msg ok">Revoked. No approved college used this NOC.</p>';
+  loadIssuer(); loadAlertCount();
+}
+
 async function loadAudit() {
   const {chain, entries} = await api('/api/audit');
   $('#auditBody').innerHTML = `
@@ -579,7 +601,8 @@ async function loadAudit() {
 
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
-  ['queue', 'alerts', 'rules', 'network', 'inspect', 'audit'].forEach(t => $('#' + t).hidden = t !== b.dataset.t);
+  ['queue', 'alerts', 'rules', 'network', 'inspect', 'issuer', 'audit'].forEach(t => $('#' + t).hidden = t !== b.dataset.t);
+  if (b.dataset.t === 'issuer') loadIssuer();
   if (b.dataset.t === 'network') loadNetwork();
   if (b.dataset.t === 'inspect') loadPlan();
   if (b.dataset.t === 'alerts') loadAlerts();

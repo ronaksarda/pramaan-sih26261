@@ -542,6 +542,8 @@ def run(app_id):
     def fire_cmp(rec):
         if rec is None:
             return "MISMATCH", "has no record of this NOC", None
+        if rec.get("revoked"):
+            return "MISMATCH", f"revoked this NOC on {rec['revoked']}", None
         shown = docs["fire_noc.pdf"].get("Valid Upto", "")
         if shown and squash(shown) != squash(rec["valid_upto"]):
             status = "EXPIRED" if parse_date(rec["valid_upto"]) < app_date else "MISMATCH"

@@ -213,6 +213,14 @@ assert APR.post("/api/rules/norms/import", files={"file": ("n.json", b'[{"Progra
 assert OFF.post("/api/rules/norms/import", files={"file": ("n.json", b"[]")}).status_code == 403
 assert "AREA_SHORTFALL" in checks_of("APP-2")
 
+# inspection brief, and the post-approval watch when an issuer revokes a certificate
+assert OFF.get("/api/inspection-brief", params={"app": "APP-2"}).content[:4] == b"%PDF"
+noc = next(r["noc"] for r in OFF.get("/api/issuer/fire").json() if r["app"] == "APP-1")
+ev = OFF.post("/api/issuer/fire/revoke", json={"noc": noc}).json()["watch"]
+assert ev and ev[0]["app"] == "APP-1"
+assert anon.get(f"/api/public/records/{rec_id}").json()["watch"]
+assert "WATCH" in {a["type"] for a in APR.get("/api/alerts").json()}
+
 # norms table edit changes the result; a broken table is refused
 jdm = json.loads(norms_backup)
 assert APR.put("/api/rules/norms", json={"nodes": []}).status_code == 422

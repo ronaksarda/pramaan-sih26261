@@ -300,7 +300,7 @@ def decide(app_id: str, body: Decision, request: Request, x_role: str = Header("
     s["decisions"][app_id] = d
     audit(f"approver:{x_user}", "DECISION" if d["status"] == "FINAL" else "DECISION_PROPOSED", {"app": app_id, **d})
     if body.outcome == "APPROVE":
-        rec = records.issue(application(app_id), run, d, str(request.base_url))
+        rec = {**records.issue(application(app_id), run, d, str(request.base_url)), "watch": []}
         s["records"][rec["id"]] = rec
         d["record"] = rec["id"]
         audit("pramaan-records", "RECORD_ISSUED", {"app": app_id, "record": rec["id"], "sha256": rec["sha256"]})
@@ -540,6 +540,69 @@ def network(x_role: str = Header("")):
     return {"nodes": list(nodes.values()), "edges": [{"a": a, "b": b, "kind": k, "count": c} for (a, b, k), c in edges.items()]}
 
 
+@app.get("/api/inspection-brief")
+def inspection_brief(app: str, x_role: str = Header("")):
+    if x_role not in OFFICERS | {"auditor"}:
+        raise HTTPException(403, "Officers and auditors only")
+    a, run = application(app), load()["runs"].get(app)
+    if not run:
+        raise HTTPException(409, "Run checks first")
+    with_ = sorted({lk.get("institution") or application(lk["app"])["institution"] for f in run["findings"] for lk in f.get("links", [])})
+    master = json.loads((DATA / "master.json").read_text())[a["aicte_id"]]
+    audit(x_role, "INSPECTION_BRIEF", {"app": app})
+    return Response(records.inspection_brief(a, master, run, with_), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{app}-inspection-brief.pdf"'})
+
+
+@app.get("/api/issuer/fire")
+def issuer_fire(x_role: str = Header("")):
+    """Issuer simulator: the state fire department's register, as the integration would see it."""
+    if x_role not in OFFICERS:
+        raise HTTPException(403, "Officers only")
+    reg = json.loads((DATA / "registry.json").read_text())["fire"]
+    approved = {application(r["app"])["aicte_id"]: r["app"] for r in load()["records"].values()}
+    master = json.loads((DATA / "master.json").read_text())
+    by_name = {m["name"]: aid for aid, m in master.items()}
+    return [{"noc": k, **v, "app": approved.get(by_name.get(v["institution"]))} for k, v in sorted(reg.items())]
+
+
+class Revoke(BaseModel):
+    noc: str
+
+
+@app.post("/api/issuer/fire/revoke")
+def issuer_revoke(body: Revoke, x_role: str = Header(""), x_user: str = Header("")):
+    """Simulate the fire department revoking a NOC, then run the post-approval watch."""
+    if x_role not in OFFICERS:
+        raise HTTPException(403, "Officers only")
+    path = DATA / "registry.json"
+    reg = json.loads(path.read_text())
+    if body.noc not in reg["fire"]:
+        raise HTTPException(404, "No such NOC in the fire register")
+    reg["fire"][body.noc]["revoked"] = date.today().isoformat()
+    path.write_text(json.dumps(reg, indent=2))
+    audit(f"{x_role}:{x_user}", "ISSUER_REVOKED", {"source": "fire", "noc": body.noc})
+    return {"revoked": body.noc, "watch": watch()}
+
+
+def watch():
+    """Re-verify every approved college with its issuers; record any certificate that is no longer valid."""
+    s = load()
+    events = []
+    for r in s["records"].values():
+        before = {v["doc"]: v["status"] for v in s["runs"][r["app"]]["verifications"]}
+        run = checks.run(r["app"])
+        for v in run["verifications"]:
+            if before.get(v["doc"]) == "VERIFIED" and v["status"] != "VERIFIED":
+                note = f"{v['doc']}: {v['source']} now reports {v['status'].lower()} (checked {v['checked_at'][:16].replace('T', ' ')})"
+                r.setdefault("watch", []).append({"at": v["checked_at"], "doc": v["doc"], "status": v["status"], "note": note})
+                events.append({"record": r["id"], "app": r["app"], "note": note})
+                audit("pramaan-watch", "CERTIFICATE_CHANGED_AFTER_APPROVAL", {"app": r["app"], "record": r["id"], "note": note})
+        s["runs"][r["app"]] = run
+    save(s)
+    return events
+
+
 @app.get("/api/inspection-plan")
 def inspection_plan(budget: int = 3, x_role: str = Header("")):
     """Self-disclosure approvals are checked only afterwards (APH 2.5(c)) and inspection teams are few.
@@ -593,6 +656,10 @@ def alerts(x_role: str = Header(""), x_user: str = Header("")):
         if d and d.get("status") == "AWAITING_CHECKER" and d["checker"] == x_user:
             out.append({"app": app_id, "institution": a["institution"], "type": "CONFIRM_DECISION", "title": "Decision awaiting your confirmation",
                         "severity": "HIGH", "message": f"{d['maker']} proposes: {d['outcome'].replace('_', ' ').lower()}. {d['reason']}"})
+        for r in s["records"].values():
+            if r["app"] == app_id and r.get("watch") and x_role == "approver":
+                out.append({"app": app_id, "institution": a["institution"], "type": "WATCH", "title": "Issuer changed a certificate after approval",
+                            "severity": "HIGH", "message": r["watch"][-1]["note"]})
         if x_role == "approver" and run["outcome"] == "RECOMMEND_INSPECTION" and app_id not in s["decisions"]:
             out.append({"app": app_id, "institution": a["institution"], "type": "INSPECTION_RECOMMENDED", "title": "Inspection recommended",
                         "severity": "HIGH", "message": "Awaiting your decision"})
@@ -645,7 +712,7 @@ def put_norms(body: dict, x_role: str = Header(""), x_user: str = Header("")):
 # ---------- public: anyone can check an approval, no role needed ----------
 
 PUBLIC = ("id", "institution", "aicte_id", "category", "intake", "cycle", "decided_at", "rules_version", "proof_score",
-          "independent_pct", "proof_counts", "claims", "issued_at")
+          "independent_pct", "proof_counts", "claims", "issued_at", "watch")
 
 
 def public_record(rid):
