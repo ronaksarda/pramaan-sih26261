@@ -45,6 +45,7 @@
   <svg class="mb-mark" aria-hidden="true"><use href="#mark"/></svg>
   <div class="mb-right">
     <label class="switch" id="fireWrap" title="Simulate the state fire registry going offline"><input type="checkbox" id="fire" role="switch"> fire registry offline</label>
+    <button class="aqua sm-aqua" id="askBtn" onclick="toggleAsk()">ask pramaan</button>
     <span class="who" id="who"></span><span class="clock" id="clock"></span>
     <button class="linkbtn" onclick="signOut()">sign out</button>
   </div>
@@ -97,6 +98,16 @@
     <div class="pad" id="auditBody"></div></div></section>
   <p class="note">Synthetic applications and documents; real licensed campus photos. Every finding is a preliminary indicator for an officer to review, never a verdict.</p>
 </main>
+
+<aside id="ask" class="window ask-win" hidden aria-label="Ask Pramaan">
+  <div class="titlebar"><span class="lights"><i class="close" onclick="toggleAsk()" title="Close"></i><i></i><i></i></span>
+    <span class="title" id="askTitle">ask pramaan</span></div>
+  <div class="ask-log" id="askLog" aria-live="polite"></div>
+  <div class="ask-chips" id="askChips"></div>
+  <form class="ask-form" id="askForm"><input id="askInput" placeholder="Ask about this case, in English or Hindi" aria-label="Your question" autocomplete="off">
+    <button class="aqua" type="submit">ask</button></form>
+  <p class="ask-note">Answers come only from the case record and cite findings. Pramaan never decides; officers do.</p>
+</aside>
 
 <dialog id="ev" class="window"><div class="titlebar"><span class="lights"><i class="close" onclick="ev.close()" title="Close"></i><i></i><i></i></span>
   <span class="title" id="evTitle"></span><button class="linkbtn" onclick="ev.close()">close</button></div>
@@ -171,7 +182,7 @@ async function loadList() {
 
 function findingsHtml(f) {
   return `<div class="group">${f.length ? f.map(x => `
-    <div class="row finding">
+    <div class="row finding" id="f-${x.id}">
       <div class="main"><div>${chip(x.severity)} <span class="t">${esc(x.title)}</span></div>
         <div class="s">${esc(x.message)}</div>
         <div class="m">${esc(x.clause)} · suggested next step: ${label(x.action).toLowerCase()}</div>
@@ -229,6 +240,7 @@ function institutionHtml(a, docs, run) {
 
 async function openApp(id) {
   current = id;
+  if (!$('#ask').hidden) resetAsk();
   loadList();
   if (!RULES) RULES = await api('/api/rules');
   const {application: a, documents: docs, run, decision, record} = await api(`/api/apps/${id}`);
@@ -431,6 +443,46 @@ async function loadPlan() {
     ${p.not_planned.length ? `<h4>Not in this plan</h4><div class="group">${p.not_planned.map(r => row(r)).join('')}</div>` : ''}
     <p class="foot">Priority = 10 × contradicted claims + 5 × serious findings + half of (100 − proof score). Officers can change the order; the plan is advice, not a decision.</p>`;
 }
+
+/* ---------- Ask Pramaan ---------- */
+let askHistory = [], askApp = null;
+const SUGGEST = {
+  case: ['Why is an inspection recommended?', 'What is only declared, not proven?', 'Explain the most serious finding simply'],
+  institution: ['What do I need to fix before submitting?', 'How can I raise my proof score?', 'Explain each finding simply'],
+  queue: ['What needs my attention first?', 'Which colleges have the weakest proof?', 'Summarise today\'s queue'],
+};
+function toggleAsk() {
+  const w = $('#ask'); w.hidden = !w.hidden;
+  if (!w.hidden) { resetAsk(); $('#askInput').focus(); }
+}
+function resetAsk() {
+  if (askApp !== current) { askHistory = []; askApp = current; $('#askLog').innerHTML = ''; }
+  $('#askTitle').textContent = current ? `ask pramaan · ${current}` : 'ask pramaan · queue';
+  const kind = !current ? 'queue' : role() === 'institution' ? 'institution' : 'case';
+  $('#askChips').innerHTML = SUGGEST[kind].map(q => `<button type="button" class="pill" onclick="sendAsk(${JSON.stringify(q).replace(/"/g, '&quot;')})">${esc(q)}</button>`).join('');
+}
+const linkFindings = html => html.replace(/\[F(\d+)\]/g, (m, id) => `<a href="#f-${id}" class="fref" onclick="flashFinding(${id});return false">F${id}</a>`);
+function flashFinding(id) {
+  const r = document.getElementById('f-' + id); if (!r) return;
+  r.scrollIntoView({behavior: 'smooth', block: 'center'}); r.classList.add('flash'); setTimeout(() => r.classList.remove('flash'), 1600);
+}
+function bubble(who, text) {
+  const body = who === 'you' ? esc(text) : linkFindings(esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'));
+  $('#askLog').insertAdjacentHTML('beforeend', `<div class="bub ${who}">${body.replace(/\n/g, '<br>')}</div>`);
+  $('#askLog').scrollTop = 1e9;
+}
+async function sendAsk(q) {
+  q = (q || '').trim(); if (!q) return;
+  if (askApp !== current) resetAsk();
+  bubble('you', q); $('#askInput').value = '';
+  $('#askLog').insertAdjacentHTML('beforeend', '<div class="bub bot thinking" id="askWait">reading the case record…</div>');
+  try {
+    const r = await api('/api/assist', {method: 'POST', body: JSON.stringify({question: q, app_id: current || '', history: askHistory})});
+    askHistory.push({role: 'user', content: q}, {role: 'assistant', content: r.answer});
+    $('#askWait').remove(); bubble('bot', r.answer);
+  } catch (e) { $('#askWait').remove(); bubble('err', e.message.replace(/^\d+: /, '')); }
+}
+$('#askForm').onsubmit = e => { e.preventDefault(); sendAsk($('#askInput').value); };
 
 async function loadAudit() {
   const {chain, entries} = await api('/api/audit');

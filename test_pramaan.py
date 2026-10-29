@@ -103,6 +103,16 @@ assert plan["plan"][0]["app"] == "APP-2" and plan["visits"] <= 3
 assert {"Ganga Institute of Technology, Patna", "Vidya Bharati College of Engineering"} <= set(plan["plan"][0]["inspect_with"])
 assert INST.get("/api/inspection-plan").status_code == 403
 
+# Ask Pramaan: grounded in what the role may see; a college cannot ask about another college
+import assistant  # noqa: E402
+seen = {}
+assistant.ask = lambda q, hist, ctx, role: (seen.update(ctx=ctx, role=role), "Inspection is recommended because of [F3].")[1]
+assert OFF.post("/api/assist", json={"question": "Why?", "app_id": "APP-2"}).json()["answer"].endswith("[F3].")
+assert seen["role"] == "scrutiny_officer" and any(f["title"] == "Faculty also listed at another college" for f in seen["ctx"]["findings"])
+assert INST.post("/api/assist", json={"question": "Why?", "app_id": "APP-2"}).status_code == 403
+assert OFF.post("/api/assist", json={"question": "What needs attention?"}).status_code == 200 and "queue" in seen["ctx"]
+assert OFF.post("/api/assist", json={"question": " "}).status_code == 422
+
 # alerts are routed by role
 assert {a["type"] for a in APR.get("/api/alerts").json()} == {"INSPECTION_RECOMMENDED"}
 assert "SCAN_TAMPER" in {a["type"] for a in OFF.get("/api/alerts").json()}

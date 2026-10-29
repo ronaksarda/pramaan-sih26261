@@ -209,3 +209,20 @@ dialog img{max-width:100%;border-radius:6px;display:block;margin:6px 0 14px;bord
 .picker input:focus-visible+.plain{outline:3px solid rgba(10,108,255,.4);outline-offset:2px}
 .picker .fname{font-size:13px;color:var(--ink3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .window>.foot{margin:0;padding:9px 16px 12px;border-top:1px solid rgba(0,0,0,.07)}
+
+/* Ask Pramaan: a small window docked bottom-right, above the desk */
+.sm-aqua{height:28px;padding:0 13px 1px;font-size:13.5px;box-shadow:none}
+.ask-win{position:fixed;right:22px;bottom:22px;width:min(420px,calc(100vw - 32px));max-height:min(620px,calc(100vh - 100px));
+  display:flex;flex-direction:column;z-index:20}
+.ask-log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+.bub{max-width:88%;padding:8px 12px;border-radius:12px;font-size:14px;line-height:1.45}
+.bub.you{align-self:flex-end;background:linear-gradient(#d6e7ff,#a9cdfb);border:1px solid #6d93d6}
+.bub.bot{align-self:flex-start;background:#f2f2f2;border:1px solid var(--hair)}
+.bub.err{align-self:flex-start;background:var(--redbg);color:var(--red)}
+.bub.thinking{color:var(--ink3);font-style:italic}
+.fref{font-weight:600;text-decoration:none;background:#e5f0ff;border-radius:4px;padding:0 4px}
+.ask-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 8px}
+.ask-form{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--hair)}
+.ask-form input{flex:1;min-width:0;height:34px;border:1px solid #9a9a9a;border-radius:6px;padding:0 10px;box-shadow:inset 0 1px 2px rgba(0,0,0,.16)}
+.ask-note{font-size:11.5px;color:var(--ink3);margin:0;padding:0 14px 10px}
+.row.flash{background:#fff6d6;transition:background .3s}

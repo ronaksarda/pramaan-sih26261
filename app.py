@@ -20,6 +20,9 @@ from PIL import Image, ImageDraw
 from pydantic import BaseModel
 
 import auth
+import anthropic
+
+import assistant
 import checks
 import records
 import storage
@@ -389,6 +392,46 @@ def evidence_pack(app_id: str, x_role: str = Header("")):
     audit(x_role, "EVIDENCE_PACK_EXPORTED", {"app": app_id})
     return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{app_id}-evidence-pack.zip"'})
+
+
+class Ask(BaseModel):
+    question: str
+    app_id: str = ""
+    history: list[dict] = []
+
+
+@app.post("/api/assist")
+def assist(body: Ask, x_role: str = Header(""), x_user: str = Header("")):
+    """Ask Pramaan. The assistant sees only what this role may see, and never decides."""
+    if not body.question.strip() or len(body.question) > 2000:
+        raise HTTPException(422, "Ask a question of at most 2000 characters")
+    history = [{"role": m["role"], "content": str(m["content"])[:4000]} for m in body.history
+               if m.get("role") in ("user", "assistant")]  # trust boundary: only plain user/assistant turns
+    if body.app_id:
+        a = application(body.app_id)
+        if not visible(a, x_role, x_user):
+            raise HTTPException(403, "Not visible to this role")
+        s = load()
+        context = assistant.case_context(a, s["runs"].get(a["id"]), s["decisions"].get(a["id"]),
+                                         next((r for r in s["records"].values() if r["app"] == a["id"]), None))
+    else:
+        context = assistant.queue_context(list_apps(x_role, x_user))
+    try:
+        answer = assistant.ask(body.question.strip(), history, context, x_role)
+    except anthropic.AuthenticationError:
+        raise HTTPException(503, "Ask Pramaan needs an Anthropic API key on the server (ANTHROPIC_API_KEY)")
+    except anthropic.RateLimitError:
+        raise HTTPException(429, "Ask Pramaan is busy. Try again in a minute.")
+    except anthropic.APIStatusError as e:
+        raise HTTPException(502, f"Ask Pramaan could not answer (model service error {e.status_code})")
+    except anthropic.APIConnectionError:
+        raise HTTPException(503, "Ask Pramaan cannot reach the model service. Check the server's internet connection.")
+    except TypeError as e:  # the SDK raises this when no credential is configured at all
+        if "api_key" not in str(e) and "auth" not in str(e).lower():
+            raise
+        raise HTTPException(503, "Ask Pramaan needs an Anthropic API key on the server (ANTHROPIC_API_KEY)")
+    audit(f"{x_role}:{x_user}", "ASSISTANT_QUESTION", {"app": body.app_id or None, "question": body.question.strip()[:300]})
+    return {"answer": answer}
 
 
 @app.get("/api/inspection-plan")
