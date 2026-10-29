@@ -214,6 +214,18 @@ def forge_record(data, field, new):
     return out.getvalue()
 
 
+def cover_value(data, field, new):
+    """A cover-up: a white annotation box over one value, showing a different value on top."""
+    doc = pymupdf.open(stream=data)
+    page = doc[0]
+    r = page.search_for(f"{field}: ")[0]
+    box = pymupdf.Rect(r.x1, r.y0 - 1, r.x1 + 80, r.y1 + 1)
+    annot = page.add_freetext_annot(box, new, fontsize=12, fontname="helv", text_color=(0, 0, 0), fill_color=(1, 1, 1))
+    annot.set_info(content=new)
+    annot.update()
+    return doc.tobytes()
+
+
 def dms(x):
     deg = int(x)
     m = int((x - deg) * 60)
@@ -276,6 +288,8 @@ def build_app(a, master, signer, registry, root):
             data = scanned(issuer, title, fields, a.get("tamper_fire"), seed=n)
         else:
             data = pdf_bytes(issuer, title, fields)
+        if fname == "fire_noc.pdf" and a.get("cover_fire"):
+            data = cover_value(data, "Valid Upto", a["cover_fire"])
         if fname == "affidavit.pdf":
             data = sign(data, signer)
             if a.get("tamper_affidavit"):
@@ -417,6 +431,8 @@ def national(registry, signer, root, count=48):
             a.update(ghost_of=901, ghosts=5)
         elif i == 20:
             a.update(fire_copy_of=119)  # the fire NOC file of college 19, byte for byte
+        elif i == 35:
+            a.update(fire_valid=date(2026, 6, 30), cover_fire="30-06-2028")  # expired NOC, a new date drawn over the old one
         elif i in (27, 28):
             a.update(survey="SY-TEL-0771", acres="10.29")  # the JNTU-H pattern: the same land shown twice
         elif roll < 0.12:

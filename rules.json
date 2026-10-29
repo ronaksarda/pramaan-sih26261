@@ -254,6 +254,12 @@
       "action": "RECOMMEND_INSPECTION",
       "clause": "APH Annexure 2 §2.1(iii) (land and building)",
       "title": "Same land shown by another college"
+    },
+    "VALUE_COVERED": {
+      "severity": "HIGH",
+      "action": "RECOMMEND_INSPECTION",
+      "clause": "Integrity: covered value",
+      "title": "A value is hidden under an annotation"
     }
   },
   "proof_levels": {

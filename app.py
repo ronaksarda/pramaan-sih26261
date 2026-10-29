@@ -364,6 +364,40 @@ def letter(app_id: str, x_role: str = Header(""), x_user: str = Header("")):
                     headers={"Content-Disposition": f'attachment; filename="{app_id}-deficiency-round-{rnd}.pdf"'})
 
 
+@app.get("/api/apps/{app_id}/revisions")
+def doc_revisions(app_id: str, doc: str, x_role: str = Header(""), x_user: str = Header("")):
+    """Every saved version inside a PDF, what each one added or removed, and which one the signature covers."""
+    if not visible(application(app_id), x_role, x_user):
+        raise HTTPException(403, "Not visible to this role")
+    data = storage.read(safe_path(app_id, doc))
+    ends = checks.revisions(data)
+    sig = checks.validate_dsc(data) if doc == "affidavit.pdf" else None
+    signed_end = None
+    if sig:  # the signature's byte range ends inside the revision it signed
+        from pyhanko.pdf_utils.reader import PdfFileReader
+        br = PdfFileReader(io.BytesIO(data)).embedded_signatures[0].byte_range
+        signed_end = br[2] + br[3]
+    out, prev = [], []
+    for i, end in enumerate(ends, 1):
+        lines = checks.revision_lines(data, end)
+        out.append({"rev": i, "bytes": end, "signed": signed_end is not None and abs(end - signed_end) < 64,
+                    "after_signing": signed_end is not None and end > signed_end + 64,
+                    "added": [ln for ln in lines if ln not in prev], "removed": [ln for ln in prev if ln not in lines]})
+        prev = lines
+    return {"doc": doc, "revisions": out}
+
+
+@app.get("/api/apps/{app_id}/revision.png")
+def revision_png(app_id: str, doc: str, rev: int, x_role: str = Header(""), x_user: str = Header("")):
+    if not visible(application(app_id), x_role, x_user):
+        raise HTTPException(403, "Not visible to this role")
+    data = storage.read(safe_path(app_id, doc))
+    ends = checks.revisions(data)
+    if not 1 <= rev <= len(ends):
+        raise HTTPException(404, "No such revision")
+    return Response(pymupdf.open(stream=data[:ends[rev - 1]])[0].get_pixmap(dpi=80).tobytes("png"), media_type="image/png")
+
+
 def render_evidence(app, doc, kind, bbox=None, boxes=None):
     data = storage.read(safe_path(app, doc))
     if kind == "img":

@@ -316,7 +316,7 @@ async function openApp(id) {
         <span class="m">${p.distance_m === null ? 'No location in photo' : `Taken ${p.distance_m} m from the campus entrance`}</span></figcaption></figure>`).join('') || '<p class="foot">No photos.</p>'}</div>
     <h4>What Pramaan read from each document</h4>
     <div class="group">${Object.entries(run.extraction).map(([d, x]) => `
-      <div class="row"><div class="main"><div class="t">${esc(d)}</div><div class="s">${esc(x.method)}${x.ela_peak !== undefined ? ` · edit signal ${x.ela_peak}` : ''}</div>
+      <div class="row"><div class="main"><div class="t">${esc(d)}${x.revisions ? ` <button class="plain sm" onclick="showRevisions('${a.id}','${esc(d)}')">${x.revisions} saved versions · see history</button>` : ''}</div><div class="s">${esc(x.method)}${x.ela_peak !== undefined ? ` · edit signal ${x.ela_peak}` : ''}</div>
         <div class="mono">${esc(Object.entries(x.fields).map(([k, val]) => `${k}: ${val}`).join(' · '))}</div></div></div>`).join('')}</div>
     <h4 id="decisionHead">Decision, human only</h4>
     ${decision ? `<div class="group"><div class="row"><div class="main"><div>${chip(decision.outcome)} <span class="t">${esc(decision.maker)}${decision.checker ? ' + ' + esc(decision.checker) : ''}</span></div>
@@ -388,6 +388,18 @@ async function downloadPack(id) {
   if (!r.ok) { alert((await r.json()).detail); return; }
   const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(await r.blob()), download: `${id}-evidence-pack.zip`});
   a.click();
+}
+
+async function showRevisions(app, doc) {
+  const {revisions} = await api(`/api/apps/${app}/revisions?doc=${encodeURIComponent(doc)}`);
+  $('#evTitle').textContent = `${doc}: every saved version`;
+  $('#evBody').innerHTML = `<p class="s" style="margin:0 0 10px">A PDF can be saved on top of itself. Each version below is the file as it was at that save.</p>
+    <div class="revs">${revisions.map(r => `<figure class="rev ${r.after_signing ? 'bad' : ''}">
+      <figcaption><b>Version ${r.rev}</b> ${r.signed ? chip('VERIFIED').replace('Verified', 'Signed here') : r.after_signing ? chip('HIGH').replace('High', 'After signing') : ''}</figcaption>
+      <img alt="Version ${r.rev} of ${esc(doc)}" src="/api/apps/${app}/revision.png?doc=${encodeURIComponent(doc)}&rev=${r.rev}">
+      ${r.rev > 1 ? `<div class="m">${r.added.map(l => `<div class="add">+ ${esc(l)}</div>`).join('')}${r.removed.map(l => `<div class="rem">− ${esc(l)}</div>`).join('') || (r.added.length ? '' : 'No visible text changed')}</div>` : '<div class="m">First saved version</div>'}
+    </figure>`).join('')}</div>`;
+  $('#ev').showModal();
 }
 
 function showEvidence(i) {

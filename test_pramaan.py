@@ -126,6 +126,13 @@ queue_names = {n["name"] for n in net["nodes"] if n["app"]}
 assert sum(e["kind"] == "faculty" and {e["a"], e["b"]} <= queue_names for e in net["edges"]) >= 4  # a 3-college ring + a pair
 assert INST.get("/api/network").status_code == 403
 
+# seeing through edits: every saved version, and a value hidden under an annotation box
+revs = OFF.get("/api/apps/APP-2/revisions", params={"doc": "affidavit.pdf"}).json()["revisions"]
+assert any(r["signed"] for r in revs) and revs[-1]["after_signing"] and "Approved Intake Declared: 300" in revs[-1]["added"]
+assert OFF.get("/api/apps/APP-2/revision.png", params={"doc": "affidavit.pdf", "rev": 1}).content[:4] == b"\x89PNG"
+cov = next(f for f in OFF.get("/api/apps/APP-40").json()["run"]["findings"] if f["check"] == "VALUE_COVERED")
+assert "30-06-2026" in cov["message"] and "30-06-2028" in cov["message"]
+
 # alerts are routed by role
 assert {a["type"] for a in APR.get("/api/alerts").json()} == {"INSPECTION_RECOMMENDED"}
 assert "SCAN_TAMPER" in {a["type"] for a in OFF.get("/api/alerts").json()}

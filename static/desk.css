@@ -234,3 +234,12 @@ dialog img{max-width:100%;border-radius:6px;display:block;margin:6px 0 14px;bord
 .net .node:hover circle{fill:#e5f0ff}
 .net .node.ext circle{stroke:#888;stroke-dasharray:3 2;cursor:default}
 .net text{font:11.5px Inter,sans-serif;fill:#333;pointer-events:none}
+
+/* revision timeline */
+.revs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.rev{margin:0;border:1px solid var(--hair);border-radius:8px;padding:10px;background:#fff}
+.rev.bad{border-color:rgba(215,0,21,.5);background:#fffafa}
+.rev figcaption{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.rev img{margin:0 0 8px}
+.rev .add{color:var(--green);font-weight:600}
+.rev .rem{color:var(--red);text-decoration:line-through}

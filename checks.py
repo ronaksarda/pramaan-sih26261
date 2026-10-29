@@ -174,6 +174,34 @@ def validate_dsc(data):
             "revisions": r.xrefs.total_revisions}
 
 
+def revisions(data):
+    """Byte offsets where each saved version of a PDF ends. Every prefix up to an %%EOF is a complete earlier version."""
+    ends, i = [], 0
+    while (i := data.find(b"%%EOF", i)) != -1:
+        i += 5
+        while i < len(data) and data[i:i + 1] in b"\r\n":
+            i += 1
+        ends.append(i)
+    return ends or [len(data)]
+
+
+def revision_lines(data, end):
+    return [ln.strip() for ln in pymupdf.open(stream=data[:end])[0].get_text().splitlines() if ln.strip()]
+
+
+def covered_values(data):
+    """Text that an annotation box sits on top of: the reader sees the box, the file still holds the original value."""
+    page = pymupdf.open(stream=data)[0]
+    words = page.get_text("words")
+    out = []
+    for annot in page.annots() or []:
+        r = annot.rect
+        hidden = [w[4] for w in words if (pymupdf.Rect(w[:4]) & r).get_area() > 0.5 * pymupdf.Rect(w[:4]).get_area()]
+        if hidden:
+            out.append({"bbox": [round(v, 1) for v in r], "hidden": " ".join(hidden), "shown": (annot.info.get("content") or "").strip()})
+    return out
+
+
 def ela_map(jpeg):
     """Error level analysis: re-save at quality 90 and look at where the error is unusually high."""
     img = Image.open(io.BytesIO(jpeg)).convert("RGB")
@@ -378,6 +406,13 @@ def run(app_id):
             status = "VERIFIED" if sig["trusted"] else "MANUAL_REVIEW"
         verifications.append(_ver("affidavit.pdf", "Digital signature check", status, sig,
                                   ["signature", "certificate chain", "coverage"]))
+    for doc, blob in blobs.items():
+        for c in covered_values(blob):
+            flag("VALUE_COVERED", f"{doc}: an annotation box covers '{c['hidden']}'"
+                 + (f" and shows '{c['shown']}' on top" if c["shown"] else "") + ". The file still holds the covered value. Verification required.",
+                 [{"kind": "pdf", "app": app_id, "doc": doc, "bbox": c["bbox"]}])
+        if len(revisions(blob)) > 1:
+            extraction[doc]["revisions"] = len(revisions(blob))
     for doc, x in extracted.items():
         if x["jpeg"]:
             peak, box = ela_check(x["jpeg"], pymupdf.open(stream=blobs[doc])[0].rect.width)
